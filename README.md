@@ -101,7 +101,6 @@ Mở trình duyệt và truy cập: http://localhost:8000
 - `GET /api/v1/videos`: Lấy danh sách video của người dùng
 - `GET /api/v1/videos/{video_id}`: Xem chi tiết video
 - `DELETE /api/v1/videos/{video_id}`: Xóa video
-- `WebSocket /api/v1/videos/ws/process/{video_id}`: Streaming xử lý video
 
 ## Lưu trữ media
 

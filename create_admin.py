@@ -34,7 +34,7 @@ def create_admin_user(username, email, password):
     try:
         # Kết nối trực tiếp đến PostgreSQL
         conn = psycopg2.connect(
-            database="fire-detection-test-git",
+            database="fire-detection",
             user="postgres",
             password="1",
             host="localhost",

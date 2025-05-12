@@ -1,6 +1,6 @@
 # Hệ thống Phát hiện Đám Cháy từ Video
 
-Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 và FastAPI. Ứng dụng này tự động phát hiện đám cháy từ video được tải lên hoặc video YouTube, với kết quả xử lý lưu trữ trên Cloudinary.
+Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytics) và FastAPI. Ứng dụng này tự động phát hiện đám cháy từ video được tải lên hoặc video YouTube, với kết quả xử lý lưu trữ trên Cloudinary. Giao diện người dùng được xây dựng bằng React.
 
 ## Tính năng
 
@@ -15,6 +15,7 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 và FastAPI
 ## Yêu cầu hệ thống
 
 - Python 3.8 hoặc cao hơn
+- Node.js 14+ và npm (cho frontend)
 - PostgreSQL
 - Tài khoản Cloudinary
 - Torch/PyTorch (hỗ trợ CUDA nếu có GPU)
@@ -48,41 +49,41 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 và FastAPI
    - Thông tin Cloudinary API
    - Secret key cho JWT
 
-5. Tải model YOLOv11 và đặt vào thư mục `model/`:
-   - Model YOLO đã train phát hiện đám cháy (bestyolov11-25k.pt)
+5. Tải model YOLOv11 và đặt vào thư mục `model/`: 
+   - Model YOLO đã train phát hiện đám cháy (tên file `bestyolov11-25k.pt`)
+   - Hoặc cập nhật tham số MODEL_PATH trong file .env
 
 6. Chạy migration để tạo cấu trúc database:
    ```
-   python -m alembic upgrade head
+   alembic upgrade head
+   ```
+
+7. Cài đặt dependencies cho frontend:
+   ```
+   cd frontendfireweb
+   npm install
+   cd ..
    ```
 
 ## Cấu trúc thư mục
 
 ```
 fire-detection/
-├── app/                    # Mã nguồn chính
-│   ├── api/                # API endpoints 
-│   ├── core/               # Cấu hình
-│   ├── db/                 # Kết nối database
-│   ├── models/             # Mô hình dữ liệu
-│   ├── schemas/            # Pydantic schemas
-│   ├── services/           # Business logic
-│   └── utils/              # Tiện ích
-├── migrations/             # Alembic migrations
-├── model/                  # Model YOLOv11
-├── .env                    # Biến môi trường
-├── .env.example           # Mẫu cấu hình biến môi trường
-├── .gitignore             # Danh sách file bỏ qua khi đẩy lên Git
-└── requirements.txt        # Packages
-```
-
-## Khởi chạy ứng dụng
-
-```bash
-# Khởi động ứng dụng
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
+├─ app/                    # Mã nguồn backend (FastAPI)
+│   ├─ api/                # API endpoints 
+│   ├─ core/               # Cấu hình
+│   ├─ db/                 # Kết nối database
+│   ├─ models/             # Mô hình dữ liệu
+│   ├─ schemas/            # Pydantic schemas
+│   ├─ services/           # Business logic
+│   └─ utils/              # Tiện ích
+├─ frontendfireweb/        # Mã nguồn frontend (React)
+├─ migrations/             # Alembic migrations
+├─ model/                  # Model YOLOv11
+├─ .env                    # Biến môi trường
+├─ .env.example           # Mẫu cấu hình biến môi trường
+├─ .gitignore             # Danh sách file bỏ qua khi đẩy lên Git
+└─ requirements.txt        # Packages cho backend
 Mở trình duyệt và truy cập: http://localhost:8000
 
 ## Sử dụng API
@@ -101,7 +102,6 @@ Mở trình duyệt và truy cập: http://localhost:8000
 - `GET /api/v1/videos`: Lấy danh sách video của người dùng
 - `GET /api/v1/videos/{video_id}`: Xem chi tiết video
 - `DELETE /api/v1/videos/{video_id}`: Xóa video
-- `WebSocket /api/v1/videos/ws/process/{video_id}`: Streaming xử lý video
 
 ## Lưu trữ media
 

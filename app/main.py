@@ -40,24 +40,12 @@ init_cloudinary()
 # Đăng ký router API
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Phục vụ tệp tĩnh từ thư mục gốc
-templates = Jinja2Templates(directory=".")
-
-@app.get("/", response_class=HTMLResponse)
-def read_root(request: Request):
+@app.get("/")
+def read_root():
     """
     Hiển thị trang chủ
     """
-    return templates.TemplateResponse("test_stream.html", {"request": request})
-
-
-@app.get("/test-stream", response_class=HTMLResponse)
-def test_stream(request: Request):
-    """
-    Hiển thị trang test streaming
-    """
-    return templates.TemplateResponse("test_stream.html", {"request": request})
-
+    return {"message": "Hệ thống phát hiện đám cháy API đang hoạt động"}
 
 @app.get("/api/health-check")
 def health_check():

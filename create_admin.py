@@ -34,7 +34,7 @@ def create_admin_user(username, email, password):
     try:
         # Kết nối trực tiếp đến PostgreSQL
         conn = psycopg2.connect(
-            database="fire-detection",
+            database="fire-detection-test-git",
             user="postgres",
             password="1",
             host="localhost",
@@ -97,12 +97,30 @@ def create_admin_user(username, email, password):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Tạo tài khoản admin cho hệ thống phát hiện đám cháy")
-    parser.add_argument("--username", type=str, required=True, help="Tên đăng nhập")
-    parser.add_argument("--email", type=str, required=True, help="Email")
-    parser.add_argument("--password", type=str, required=True, help="Mật khẩu")
+    print("===== Tạo tài khoản admin cho hệ thống phát hiện đám cháy =====\n")
     
-    args = parser.parse_args()
+    # Nhập thông tin từ người dùng
+    username = input("Nhập tên đăng nhập: ")
+    email = input("Nhập email: ")
     
-    # Tạo admin
-    create_admin_user(args.username, args.email, args.password) 
+    # Nhập mật khẩu và yêu cầu xác nhận
+    while True:
+        password = input("Nhập mật khẩu: ")
+        confirm_password = input("Xác nhận mật khẩu: ")
+        
+        if password == confirm_password:
+            break
+        else:
+            print("Mật khẩu không khớp. Vui lòng nhập lại.\n")
+    
+    # Xác nhận thông tin
+    print("\nThông tin tài khoản:")
+    print(f"Username: {username}")
+    print(f"Email: {email}")
+    confirm = input("\nXác nhận tạo tài khoản? (y/n): ")
+    
+    if confirm.lower() == 'y':
+        # Tạo admin
+        create_admin_user(username, email, password)
+    else:
+        print("Đã hủy tạo tài khoản.")

@@ -15,10 +15,11 @@ opencv-python==4.8.1.78
 numpy==1.26.1
 pillow==10.1.0
 cloudinary==1.36.0
-ultralytics==8.0.176
+ultralytics>=8.1.0
 torch>=2.0.0
 websockets==11.0.3
 imageio~=2.31.0
 imageio-ffmpeg~=0.4.8
 yt_dlp==2025.4.30
 requests==2.31.0
+pydantic[email]

@@ -58,12 +58,6 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytic
    alembic upgrade head
    ```
 
-7. Cài đặt dependencies cho frontend:
-   ```
-   cd frontendfireweb
-   npm install
-   cd ..
-   ```
 
 ## Cấu trúc thư mục
 
@@ -77,7 +71,6 @@ fire-detection/
 │   ├─ schemas/            # Pydantic schemas
 │   ├─ services/           # Business logic
 │   └─ utils/              # Tiện ích
-├─ frontendfireweb/        # Mã nguồn frontend (React)
 ├─ migrations/             # Alembic migrations
 ├─ model/                  # Model YOLOv11
 ├─ .env                    # Biến môi trường

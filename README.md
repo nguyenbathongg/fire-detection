@@ -57,6 +57,10 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytic
    ```
    alembic upgrade head
    ```
+7. Chạy backend
+   ```
+   uvicorn app.main:app --reload
+   ```
 
 
 ## Cấu trúc thư mục

@@ -42,21 +42,17 @@ def update_user_me(
                 detail="Tên đăng nhập đã tồn tại",
             )
     
-    # Kiểm tra email đã tồn tại chưa nếu đang thay đổi
-    if user_in.email and user_in.email != current_user.email:
-        if db.query(User).filter(User.email == user_in.email).first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email đã tồn tại",
-            )
-    
+    # Không cho phép cập nhật email
     # Cập nhật thông tin
     if user_in.username:
         current_user.username = user_in.username
-    if user_in.email:
-        current_user.email = user_in.email
+    # Không cập nhật email
     if user_in.password:
         current_user.password_hash = get_password_hash(user_in.password)
+    if user_in.address is not None:
+        current_user.address = user_in.address
+    if user_in.phone_number is not None:
+        current_user.phone_number = user_in.phone_number
     
     # Thêm lịch sử
     history = UserHistory(
@@ -97,13 +93,7 @@ def create_user(
     """
     Tạo người dùng mới (chỉ admin)
     """
-    # Kiểm tra username đã tồn tại chưa
-    if db.query(User).filter(User.username == user_in.username).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tên đăng nhập đã tồn tại",
-        )
-    
+
     # Kiểm tra email đã tồn tại chưa
     if db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(
@@ -117,6 +107,8 @@ def create_user(
         username=user_in.username,
         email=user_in.email,
         password_hash=get_password_hash(user_in.password),
+        address=user_in.address,
+        phone_number=user_in.phone_number,
         role="user",  # Mặc định là user
     )
     db.add(user)

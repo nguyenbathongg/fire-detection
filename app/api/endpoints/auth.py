@@ -75,13 +75,7 @@ def register_user(
     """
     Đăng ký người dùng mới
     """
-    # Kiểm tra username đã tồn tại chưa
-    if db.query(User).filter(User.username == user_in.username).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tên đăng nhập đã tồn tại",
-        )
-    
+
     # Kiểm tra email đã tồn tại chưa
     if db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(

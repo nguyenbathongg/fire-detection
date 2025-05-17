@@ -11,6 +11,8 @@ from app.models.enums import RoleEnum
 class UserBase(BaseModel):
     username: str
     email: EmailStr
+    address: Optional[str] = None
+    phone_number: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -19,8 +21,9 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
-    email: Optional[EmailStr] = None
     password: Optional[str] = None
+    address: Optional[str] = None
+    phone_number: Optional[str] = None
 
 
 class UserInDBBase(UserBase):

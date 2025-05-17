@@ -319,7 +319,9 @@ def read_videos(
     return videos
 
 
-@router.get("/all", response_model=List[VideoSchema])
+from sqlalchemy.orm import joinedload
+
+@router.get("/all")
 def read_all_videos(
     db: Session = Depends(get_db),
     skip: int = 0,
@@ -327,10 +329,21 @@ def read_all_videos(
     current_user: User = Depends(get_current_active_admin),
 ) -> Any:
     """
-    Đọc tất cả video (chỉ admin)
+    Đọc tất cả video (chỉ admin), trả về thêm username của user upload
     """
-    videos = db.query(Video).order_by(desc(Video.created_at)).offset(skip).limit(limit).all()
-    return videos
+    videos = db.query(Video).options(joinedload(Video.user)).order_by(desc(Video.created_at)).offset(skip).limit(limit).all()
+    result = []
+    for video in videos:
+        # Lấy username từ user (nếu có)
+        username = video.user.username if video.user else None
+        video_dict = video.__dict__.copy()
+        video_dict["username"] = username
+        # Loại bỏ các trường không thể serialize và trường user
+        video_dict.pop("_sa_instance_state", None)
+        if "user" in video_dict:
+            video_dict.pop("user")
+        result.append(video_dict)
+    return result
 
 
 @router.get("/{video_id}", response_model=VideoWithDetections)

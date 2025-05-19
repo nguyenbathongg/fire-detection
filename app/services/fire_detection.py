@@ -234,8 +234,9 @@ class FireDetectionService:
                         is_fire_in_frame = has_fire_in_frame
                     confidence = max_conf_in_frame if has_fire_in_frame else 0.0
                 else:
-                    # Fallback sử dụng phân tích màu sắc nếu không có model
-                    is_fire_in_frame, confidence = self.detect_fire_with_color_analysis(detection_frame)
+                    # Không có model và không dùng phương án dự phòng
+                    is_fire_in_frame = False
+                    confidence = 0.0
                 
                 if is_fire_in_frame:
                     fire_detected = True
@@ -312,49 +313,6 @@ class FireDetectionService:
                         pass
                         
             return False, [], None
-
-    def _detect_fire_in_frame(self, frame) -> Tuple[bool, float]:
-        """
-        Phát hiện đám cháy trong một frame bằng cách phân tích màu sắc
-        (Phương pháp dự phòng khi không có model YOLO - Legacy method)
-        
-        Deprecated: Use detect_fire_with_color_analysis instead
-        
-        Args:
-            frame: Frame hình ảnh cần phân tích
-            
-        Returns:
-            Tuple[bool, float]: Có phát hiện đám cháy không và mức độ tin cậy
-        """
-        # Chuyển đổi frame sang không gian màu HSV
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
-        # Định nghĩa các ngưỡng màu đặc trưng cho lửa
-        # Đám cháy thường có màu đỏ-cam-vàng trong không gian HSV
-        lower_red1 = np.array([0, 120, 70])
-        upper_red1 = np.array([10, 255, 255])
-        lower_red2 = np.array([170, 120, 70])
-        upper_red2 = np.array([180, 255, 255])
-        
-        # Tạo mask cho vùng màu lửa
-        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        mask = cv2.bitwise_or(mask1, mask2)
-        
-        # Tính toán tỷ lệ vùng lửa so với toàn bộ hình ảnh
-        fire_pixel_count = cv2.countNonZero(mask)
-        total_pixel_count = frame.shape[0] * frame.shape[1]
-        fire_ratio = fire_pixel_count / total_pixel_count
-        
-        # Áp dụng ngưỡng để xác định có đám cháy hay không
-        # Ngưỡng 0.005 (0.5%) - có thể điều chỉnh tùy theo độ nhạy mong muốn
-        threshold = 0.005
-        is_fire = fire_ratio > threshold
-        
-        # Chuẩn hóa confidence về khoảng [0, 1]
-        confidence = min(1.0, fire_ratio * 10)
-        
-        return is_fire, confidence
 
     def process_video_from_memory(self, video_data: bytes) -> Tuple[bool, bytes, Dict]:
         """

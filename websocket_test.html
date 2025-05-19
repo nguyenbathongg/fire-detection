@@ -381,12 +381,6 @@
             const fileSize = videoFile.size;
             addLog(`Kích thước file: ${(fileSize / (1024 * 1024)).toFixed(2)} MB`);
             
-            // Kiểm tra giới hạn kích thước (MaxWebSocketMessageSize thường là 16MB)
-            if (fileSize > 15 * 1024 * 1024) {
-                alert('File quá lớn! Kích thước tối đa 15MB.');
-                return;
-            }
-            
             // Reset UI và tạo kết nối mới
             resetUI();
             socket = connectWebSocket();
@@ -402,47 +396,205 @@
                 if (typeof event.data === 'string') {
                     try {
                         const data = JSON.parse(event.data);
+                        console.log('Nhận tin nhắn từ server:', data);
+                        
                         if (data.status === 'ready') {
-                            // Đọc file và gửi
-                            const reader = new FileReader();
+                            addLog('Server báo sẵn sàng nhận dữ liệu');
                             
-                            // Tiến trình đọc
-                            reader.onprogress = function(e) {
-                                if (e.lengthComputable) {
-                                    const percent = Math.round((e.loaded / e.total) * 100);
-                                    progressBar.style.width = `${percent}%`;
-                                    progressBar.textContent = `Đang đọc: ${percent}%`;
-                                }
-                            };
-                            
-                            // Khi hoàn tất việc đọc
-                            reader.onload = function() {
-                                addLog(`Đã đọc xong file vào bộ nhớ, chuẩn bị gửi...`);
-                                progressBar.textContent = `Đang gửi...`;
+                            // Nếu file lớn hơn 15MB, luôn sử dụng phương pháp chunking
+                            if (fileSize > 15 * 1024 * 1024) {
+                                addLog(`File lớn ${(fileSize / (1024 * 1024)).toFixed(2)} MB, sử dụng chunking...`);  
+                                handleLargeFileUpload(videoFile, socket);
+                            } else {
+                                // Đọc file và gửi thông thường cho file nhỏ
+                                const reader = new FileReader();
                                 
-                                try {
-                                    // Dùng ArrayBuffer cho dữ liệu nhị phân
-                                    socket.send(reader.result);
-                                    addLog(`Đã gửi ${(reader.result.byteLength / (1024 * 1024)).toFixed(2)} MB dữ liệu`);
-                                } catch (error) {
-                                    addLog(`Lỗi khi gửi: ${error.message}`, 'error');
-                                }
-                            };
+                                // Tiến trình đọc
+                                reader.onprogress = function(e) {
+                                    if (e.lengthComputable) {
+                                        const percent = Math.round((e.loaded / e.total) * 100);
+                                        progressBar.style.width = `${percent}%`;
+                                        progressBar.textContent = `Đang đọc: ${percent}%`;
+                                    }
+                                };
+                                
+                                // Khi hoàn tất việc đọc
+                                reader.onload = function() {
+                                    addLog(`Đã đọc xong file vào bộ nhớ, chủẩn bị gửi...`);
+                                    progressBar.textContent = `Đang gửi...`;
+                                    progressBar.style.width = '50%';
+                                    
+                                    // Thêm độ trễ nhỏ để tránh gửi dữ liệu ngay lập tức
+                                    setTimeout(function() {
+                                        try {
+                                            // Dùng ArrayBuffer cho dữ liệu nhị phân
+                                            const arrayBuffer = reader.result;
+                                            addLog(`Chuẩn bị gửi ${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)} MB dữ liệu...`);
+                                            
+                                            // Kiểm tra kết nối trước khi gửi
+                                            if (socket.readyState === WebSocket.OPEN) {
+                                                socket.send(arrayBuffer);
+                                                addLog(`Đã gửi ${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)} MB dữ liệu thành công!`, 'success');
+                                                progressBar.style.width = '100%';
+                                                progressBar.textContent = 'Đã gửi xong, đang chờ xử lý...'; 
+                                            } else {
+                                                addLog(`Lỗi: WebSocket đã bị đóng (readyState=${socket.readyState})`, 'error');
+                                            }
+                                        } catch (error) {
+                                            addLog(`Lỗi khi gửi: ${error.message}`, 'error');
+                                            console.error('Chi tiết lỗi:', error);
+                                        }
+                                    }, 500);
+                                };
+                                
+                                // Nếu gặp lỗi khi đọc
+                                reader.onerror = function(error) {
+                                    addLog(`Lỗi khi đọc file: ${error}`, 'error');
+                                    console.error('Chi tiết lỗi đọc file:', error);
+                                };
+                                
+                                // Đọc file dưới dạng ArrayBuffer
+                                addLog(`Bắt đầu đọc file ${videoFile.name} (${(videoFile.size / (1024 * 1024)).toFixed(2)} MB)...`);
+                                reader.readAsArrayBuffer(videoFile);
+                            }
+                        } else if (data.status === 'info') {
+                            addLog(`Thông tin từ server: ${data.message}`);
+                        } else if (data.status === 'error') {
+                            addLog(`Lỗi từ server: ${data.message}`, 'error');
+                        } else if (data.status === 'upload_success') {
+                            addLog(`Tải lên thành công: ${data.message}`, 'success');
+                        }
+                    } catch (e) {
+                        console.error('Lỗi khi parse JSON:', e);
+                        addLog(`Lỗi khi xử lý tin nhắn: ${e.message}`, 'error');
+                    }
+                }
+            });
+        });
+        
+        // Hàm xử lý upload file lớn bằng phương pháp chunking
+        function handleLargeFileUpload(videoFile, socket) {
+            // Kích thước chunk
+            const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB mỗi chuỗi
+            const totalChunks = Math.ceil(videoFile.size / CHUNK_SIZE);
+            let currentChunk = 0;
+            let waitingForServerReady = false;
+            
+            addLog(`File lớn ${videoFile.name} (${(videoFile.size / (1024 * 1024)).toFixed(2)} MB) sẽ được chia thành ${totalChunks} phần, mỗi phần ${formatFileSize(CHUNK_SIZE)}`);
+            
+            // Cấu hình sự kiện message để xử lý các trả lời từ server
+            socket.addEventListener('message', handleServerMessages);
+            
+            // Thông báo cho server về việc sẽ gửi file theo chuỗi
+            addLog("Gửi thông tin chunk_info đến server...");
+            socket.send(JSON.stringify({
+                type: "chunk_info",
+                fileName: videoFile.name,
+                fileSize: videoFile.size,
+                mimeType: videoFile.type,
+                totalChunks: totalChunks
+            }));
+            
+            // Xử lý các tin nhắn từ server
+            function handleServerMessages(event) {
+                if (typeof event.data === 'string') {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log("Nhận thông điệp từ server:", data);
+                        
+                        // Nếu server đã sẵn sàng nhận chunk tiếp theo
+                        if (data.status === "chunk_ready" && waitingForServerReady) {
+                            waitingForServerReady = false;
+                            addLog(`Server sẵn sàng nhận phần ${currentChunk + 1}/${totalChunks}`);
+                            sendChunk(currentChunk);
+                        }
+                        // Nếu server sẵn sàng cho việc chia nhỏ file
+                        else if (data.status === "ready" && data.message.includes("Sẵn sàng nhận")) {
+                            addLog("Server sẵn sàng nhận các phần của file");
+                            // Bắt đầu gửi chuỗi đầu tiên
+                            currentChunk = 0;
+                            sendChunkMeta(currentChunk);
+                        }
+                        // Nếu server đã nhận đủ tất cả các phần
+                        else if (data.status === "received" && data.message.includes("Đã nhận xong tất cả")) {
+                            addLog(data.message, 'success');
+                            progressBar.textContent = 'Đã gửi xong, server đang xử lý...';
+                            // Gỡ bỏ sự kiện để tránh treo
+                            socket.removeEventListener('message', handleServerMessages);
+                        }
+                        // Nếu server đang nhận các phần
+                        else if (data.status === "receiving") {
+                            const percent = data.percent || 0;
+                            progressBar.style.width = `${percent}%`;
+                            progressBar.textContent = `Đã nhận ${data.currentChunk}/${data.totalChunks} (${percent}%)`;
                             
-                            // Nếu gặp lỗi khi đọc
-                            reader.onerror = function() {
-                                addLog('Lỗi khi đọc file', 'error');
-                            };
-                            
-                            // Đọc file dưới dạng ArrayBuffer
-                            reader.readAsArrayBuffer(videoFile);
+                            // Nếu server báo đã nhận xong phần hiện tại, gửi phần mới
+                            if (currentChunk < totalChunks - 1) {
+                                currentChunk++;
+                                sendChunkMeta(currentChunk);
+                            }
+                        }
+                        // Nếu có lỗi
+                        else if (data.status === "error") {
+                            addLog(`Lỗi: ${data.message}`, 'error');
                         }
                     } catch (e) {
                         console.error('Lỗi khi parse JSON:', e);
                     }
                 }
-            });
-        });
+            }
+            
+            // Gửi metadata của chunk
+            function sendChunkMeta(chunkIndex) {
+                if (chunkIndex >= totalChunks) {
+                    addLog('Tất cả các phần đã được gửi thành công!', 'success');
+                    return;
+                }
+                
+                const start = chunkIndex * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, videoFile.size);
+                const chunk = videoFile.slice(start, end);
+                
+                addLog(`Gửi metadata cho phần ${chunkIndex + 1}/${totalChunks}`);
+                
+                socket.send(JSON.stringify({
+                    type: "chunk_meta",
+                    chunkIndex: chunkIndex,
+                    totalChunks: totalChunks,
+                    chunkSize: chunk.size
+                }));
+                
+                // Đánh dấu đang chờ server sẵn sàng
+                waitingForServerReady = true;
+            }
+            
+            // Gửi dữ liệu phần
+            function sendChunk(chunkIndex) {
+                const start = chunkIndex * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, videoFile.size);
+                const chunk = videoFile.slice(start, end);
+                
+                addLog(`Đang đọc phần ${chunkIndex + 1}/${totalChunks} (${(chunk.size / 1024).toFixed(2)} KB)...`);
+                
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        addLog(`Gửi dữ liệu binary cho phần ${chunkIndex + 1}/${totalChunks}`);
+                        // Gửi dữ liệu binary
+                        socket.send(e.target.result);
+                    } catch (error) {
+                        addLog(`Lỗi khi gửi phần ${chunkIndex + 1}: ${error.message}`, 'error');
+                    }
+                };
+                
+                reader.onerror = function() {
+                    addLog(`Lỗi khi đọc phần ${chunkIndex + 1}/${totalChunks}`, 'error');
+                };
+                
+                reader.readAsArrayBuffer(chunk);
+            }
+        }
         
         // Biến đã được dọi xuống để đơn giản hóa mã
         

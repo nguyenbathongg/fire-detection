@@ -24,6 +24,9 @@ from app.models.user import User
 from app.db.base import get_db
 from app.core.config import settings
 from app.schemas.user import TokenPayload
+from app.models.video import Video
+from app.models.user_history import UserHistory
+from app.models.enums import VideoTypeEnum, StatusEnum
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -89,14 +92,15 @@ async def process_direct_video_websocket(websocket: WebSocket):
         # Nhận thông tin loại video
         try:
             data = await websocket.receive_json()
-            video_type = data.get("type")  # "upload", "youtube", hoặc "chunk_info"
+            video_type = data.get("type")  # "upload", "youtube", "chunk_info", hoặc "chunk_meta"
+            logger.info(f"Nhận yêu cầu xử lý video loại: {video_type}")
         except WebSocketDisconnect:
             logger.info("Client ngắt kết nối khi gửi loại video")
             return
         except Exception as e:
             logger.error(f"Lỗi khi nhận loại video: {str(e)}")
             try:
-                await websocket.send_json({"status": "error", "message": f"Lỗi: {str(e)}"})
+                await websocket.send_json({"status": "error", "message": f"Lỗi khi nhận loại video: {str(e)}"})
                 await websocket.close()
             except:
                 pass
@@ -104,95 +108,201 @@ async def process_direct_video_websocket(websocket: WebSocket):
         
         video_data = None
         
-        # Xử lý theo kích thước phần
+        # Biến để lưu trữ các phần (chunks) của file lớn
+        chunked_data = {
+            "total_chunks": 0,
+            "chunks": {},
+            "received_chunks": 0,
+            "file_size": 0,
+            "file_name": "",
+            "mime_type": ""
+        }
+        
+        # Xử lý theo loại video (upload thường, YouTube, hoặc chunking)
         if video_type == "chunk_info":
             # Nhận thông tin về chuỗi phần
             total_chunks = data.get("totalChunks", 0)
             file_size = data.get("fileSize", 0)
-            chunk_size = data.get("chunkSize", 0)
+            file_name = data.get("fileName", "uploaded_video.mp4")
+            mime_type = data.get("mimeType", "video/mp4")
+            
+            # Kiểm tra thông tin hợp lệ
+            if total_chunks <= 0 or file_size <= 0:
+                try:
+                    logger.error(f"Thông tin file không hợp lệ: total_chunks={total_chunks}, file_size={file_size}")
+                    await websocket.send_json({"status": "error", "message": "Thông tin file không hợp lệ"})
+                except:
+                    pass
+                return
+            
+            # Lưu trữ thông tin về các phần
+            chunked_data["total_chunks"] = total_chunks
+            chunked_data["file_size"] = file_size
+            chunked_data["file_name"] = file_name
+            chunked_data["mime_type"] = mime_type
+            chunked_data["chunks"] = {}
+            chunked_data["received_chunks"] = 0  # Khởi tạo số phần đã nhận
             
             # Thông báo sẵn sàng nhận chuỗi phần
             try:
-                logger.info(f"Chuẩn bị nhận {total_chunks} phần, tổng cộng {file_size/1024/1024:.2f} MB")
-                await websocket.send_json({"status": "ready", "message": f"Sẵn sàng nhận {total_chunks} phần"})
-            except:
-                logger.info("Client ngắt kết nối khi chuẩn bị nhận chuỗi phần")
+                logger.info(f"Sẵn sàng nhận file lớn {file_name} ({file_size/1024/1024:.2f} MB) trong {total_chunks} phần")
+                await websocket.send_json({"status": "ready", "message": f"Sẵn sàng nhận {total_chunks} phần"})  
+            except Exception as e:
+                logger.error(f"Lỗi khi gửi thông báo sẵn sàng nhận chunk: {str(e)}")
+                return
+        
+        # Xử lý metadata cho từng phần
+        elif video_type == "chunk_meta":
+            # Kiểm tra xem đã khởi tạo chunked_data chưa
+            if "total_chunks" not in chunked_data or "chunks" not in chunked_data:
+                logger.error("Nhận chunk_meta trước khi gửi chunk_info")
+                try:
+                    await websocket.send_json({"status": "error", "message": "Cần gửi chunk_info trước khi gửi chunk_meta"})
+                except:
+                    pass
                 return
                 
-            # Chuẩn bị buộc để lưu trữ dữ liệu
-            all_chunks = bytearray()
-            received_chunks = 0
+            # Nhận thông tin về phần chuỗi hiện tại
+            chunk_index = data.get("chunkIndex", 0)
+            total_chunks = data.get("totalChunks", chunked_data.get("total_chunks", 0))
+            chunk_size = data.get("chunkSize", 0)
             
-            # Nhận từng phần
-            while received_chunks < total_chunks:
+            # Kiểm tra thông tin hợp lệ
+            if chunk_index < 0 or chunk_index >= total_chunks:
+                logger.error(f"Chỉ số chunk không hợp lệ: {chunk_index}/{total_chunks}")
                 try:
-                    # Nhận phần tiếp theo
-                    chunk = await websocket.receive_bytes()
-                    all_chunks.extend(chunk)
-                    received_chunks += 1
-                    
-                    # Cập nhật tiến trình
-                    if received_chunks % 5 == 0 or received_chunks == total_chunks:
-                        try:
-                            percent = min(100, int((received_chunks / total_chunks) * 100))
-                            await websocket.send_json({
-                                "status": "receiving", 
-                                "message": f"Nhận {received_chunks}/{total_chunks} phần ({percent}%)"
-                            })
-                        except:
-                            pass
-                except WebSocketDisconnect:
-                    logger.info(f"Client ngắt kết nối sau khi gửi {received_chunks}/{total_chunks} phần")
-                    return
-                except Exception as e:
-                    logger.error(f"Lỗi khi nhận phần {received_chunks+1}: {str(e)}")
-                    try:
-                        await websocket.send_json({"status": "error", "message": f"Lỗi khi nhận phần {received_chunks+1}: {str(e)}"})
-                    except:
-                        pass
-                    return
+                    await websocket.send_json({"status": "error", "message": f"Chỉ số chunk không hợp lệ: {chunk_index}/{total_chunks}"})
+                except:
+                    pass
+                return
             
-            # Đã nhận đủ các phần
-            video_data = bytes(all_chunks)
+            logger.info(f"Chuẩn bị nhận phần {chunk_index + 1}/{chunked_data['total_chunks']} kích thước {chunk_size/1024:.2f} KB")
+            
             try:
-                await websocket.send_json({"status": "info", "message": f"Nhận đủ {total_chunks} phần, tổng cộng {len(video_data)/1024/1024:.2f} MB"})
-            except:
-                logger.info("Client ngắt kết nối sau khi nhận đủ dữ liệu")
+                # Báo sẵn sàng nhận chunk
+                await websocket.send_json({"status": "chunk_ready", "message": f"Sẵn sàng nhận phần {chunk_index + 1}"})
+                
+                # Nhận dữ liệu binary cho phần này
+                chunk_data = await websocket.receive_bytes()
+                
+                if not isinstance(chunk_data, bytes):
+                    raise ValueError(f"Dữ liệu chunk không phải bytes: {type(chunk_data).__name__}")
+                
+                # Kiểm tra kích thước
+                actual_size = len(chunk_data)
+                logger.info(f"Nhận được chunk {chunk_index + 1} kích thước {actual_size/1024:.2f} KB")
+                
+                # Lưu trữ phần dữ liệu này
+                chunked_data["chunks"][chunk_index] = chunk_data
+                chunked_data["received_chunks"] += 1
+                
+                # Thông báo tiến trình
+                percent = min(100, int((chunked_data["received_chunks"] / chunked_data["total_chunks"]) * 100))
+                try:
+                    await websocket.send_json({
+                        "status": "receiving", 
+                        "message": f"Nhận phần {chunked_data['received_chunks']}/{chunked_data['total_chunks']} ({percent}%)",
+                        "percent": percent,
+                        "currentChunk": chunked_data["received_chunks"],
+                        "totalChunks": chunked_data["total_chunks"]
+                    })
+                except Exception as e:
+                    logger.warning(f"Không gửi được thông báo tiến trình: {str(e)}")
+                
+                # Kiểm tra xem đã nhận đủ các phần chưa
+                if chunked_data["received_chunks"] == chunked_data["total_chunks"]:
+                    # Ghép tất cả phần lại với nhau
+                    logger.info(f"Đã nhận đủ {chunked_data['total_chunks']} phần, đang ghép lại")
+                    all_chunks = bytearray()
+                    
+                    # Ghép theo thứ tự các phần
+                    for i in range(chunked_data["total_chunks"]):
+                        if i in chunked_data["chunks"]:
+                            chunk = chunked_data["chunks"][i]
+                            all_chunks.extend(chunk)
+                            logger.info(f"Ghép phần {i+1}/{chunked_data['total_chunks']}, kích thước {len(chunk)/1024:.2f} KB")
+                    
+                    # Chuyển thành dạng bytes
+                    video_data = bytes(all_chunks)
+                    logger.info(f"Hoàn tất ghép file, tổng kích thước {len(video_data)/1024/1024:.2f} MB")
+                    
+                    # Thông báo hoàn tất nhận
+                    try:
+                        await websocket.send_json({
+                            "status": "received", 
+                            "message": f"Đã nhận xong tất cả {chunked_data['total_chunks']} phần, tổng cộng {len(video_data)/1024/1024:.2f} MB"
+                        })
+                    except Exception as e:
+                        logger.error(f"Lỗi khi gửi thông báo hoàn tất nhận: {str(e)}")
+                    
+                    # Xóa bỏ các chunk riêng lẻ để tiết kiệm bộ nhớ
+                    chunked_data["chunks"].clear()
+                    
+                    # Tiếp tục xử lý video
+                    # (code tiếp tục ở phần sau, video_data đã sẵn sàng để xử lý)
+                    
+            except WebSocketDisconnect:
+                logger.info(f"Client ngắt kết nối khi đang gửi phần {chunk_index + 1}")
+                return
+            except Exception as e:
+                logger.error(f"Lỗi khi nhận phần {chunk_index + 1}: {str(e)}")
+                try:
+                    await websocket.send_json({"status": "error", "message": f"Lỗi khi nhận phần {chunk_index + 1}: {str(e)}"})
+                except:
+                    pass
                 return
         
         # Xử lý upload thông thường
         elif video_type == "upload":
             # Thông báo cho client sẵn sàng nhận dữ liệu
             try:
+                logger.info("Gửi thông báo sẵn sàng nhận dữ liệu video")
                 await websocket.send_json({"status": "ready", "message": "Sẵn sàng nhận dữ liệu video..."})
-            except:
-                logger.info("Client ngắt kết nối khi chuẩn bị nhận video")
+            except Exception as e:
+                logger.error(f"Lỗi khi gửi thông báo sẵn sàng: {str(e)}")
                 return
             
-            # Nhận video trực tiếp từ websocket
+            # Nhận video trực tiếp từ websocket với thời gian chờ lâu hơn
             try:
+                logger.info("Bắt đầu nhận dữ liệu video binary")
+                
+                # Tận dụng try-except để ghi log chi tiết hơn
                 try:
-                    logger.info("Bắt đầu nhận dữ liệu video binary")
-                    binary_data = await websocket.receive_bytes()
-                    logger.info(f"Nhận được {len(binary_data)} bytes dữ liệu")
-                    
-                    # Kiểm tra xem dữ liệu nhận có hợp lệ không
-                    if not isinstance(binary_data, bytes):
-                        logger.error(f"Kiểu dữ liệu không hợp lệ: {type(binary_data).__name__}")
-                        raise ValueError(f"Dữ liệu không phải kiểu bytes: {type(binary_data).__name__}")
-                    
-                    video_data = binary_data
+                    # Đặt thời gian chờ (60 giây) đủ dài để file lưu trên mạng
+                    binary_data = await asyncio.wait_for(websocket.receive_bytes(), timeout=60.0) 
+                    logger.info(f"Nhận được dữ liệu có kích thước: {len(binary_data)} bytes")
+                except asyncio.TimeoutError:
+                    logger.error("Hết thời gian chờ nhận dữ liệu (60s)")
+                    await websocket.send_json({"status": "error", "message": "Hết thời gian chờ nhận dữ liệu"})
+                    return
                 except Exception as inner_e:
-                    logger.error(f"Lỗi khi xử lý binary_data: {type(inner_e).__name__}, {str(inner_e)}")
+                    logger.error(f"Lỗi khi nhận bytes: {type(inner_e).__name__}: {str(inner_e)}")
                     raise inner_e
                 
+                # Kiểm tra xem dữ liệu nhận có hợp lệ không
+                if not isinstance(binary_data, bytes):
+                    logger.error(f"Kiểu dữ liệu không hợp lệ: {type(binary_data).__name__}")
+                    raise ValueError(f"Dữ liệu không phải kiểu bytes: {type(binary_data).__name__}")
+                
+                if len(binary_data) == 0:
+                    logger.error("Nhận được dữ liệu rỗng")
+                    raise ValueError("Dữ liệu video trống, không thể xử lý")
+                
+                video_data = binary_data
+                logger.info(f"Nhận thành công {len(video_data)/1024/1024:.2f} MB dữ liệu")
+                
+                # Gửi thông báo nhận thành công
                 try:
-                    await websocket.send_json({"status": "info", "message": f"Nhận được {len(video_data)/1024/1024:.2f} MB dữ liệu"})
-                except:
-                    logger.info("Client ngắt kết nối sau khi nhận xong dữ liệu")
-                    return
-            except WebSocketDisconnect:
-                logger.info("Client ngắt kết nối khi đang gửi dữ liệu")
+                    await websocket.send_json({
+                        "status": "info", 
+                        "message": f"Nhận được {len(video_data)/1024/1024:.2f} MB dữ liệu",
+                        "fileSize": len(video_data)
+                    })
+                    logger.info("Gửi thông báo nhận thành công")
+                except Exception as notify_e:
+                    logger.warning(f"Không thể gửi thông báo nhận thành công: {str(notify_e)}")
+            except WebSocketDisconnect as wd:
+                logger.info(f"Client ngắt kết nối khi đang gửi dữ liệu: {str(wd)}")
                 return
             except Exception as e:
                 logger.error(f"Lỗi khi nhận dữ liệu video: {type(e).__name__}, {str(e)}")
@@ -203,6 +313,7 @@ async def process_direct_video_websocket(websocket: WebSocket):
                     pass
                 return
             
+        # Xử lý tải xuống video từ YouTube
         elif video_type == "youtube":
             youtube_url = data.get("youtube_url")
             if not youtube_url:
@@ -221,7 +332,9 @@ async def process_direct_video_websocket(websocket: WebSocket):
             
             # Tải video từ YouTube
             try:
+                # Sử dụng hàm đa luồng để tải video từ YouTube
                 video_data = await download_youtube_video(youtube_url, websocket)
+                logger.info(f"Tải video YouTube thành công, kích thước: {len(video_data)/1024/1024:.2f} MB")
             except WebSocketDisconnect:
                 logger.info("Client ngắt kết nối khi đang tải YouTube")
                 return
@@ -234,6 +347,7 @@ async def process_direct_video_websocket(websocket: WebSocket):
                     pass
                 return
         else:
+            # Thông báo lỗi nếu loại video không hợp lệ
             try:
                 await websocket.send_json({"status": "error", "message": "Loại video không hợp lệ"})
                 await websocket.close()
@@ -245,33 +359,36 @@ async def process_direct_video_websocket(websocket: WebSocket):
         try:
             await websocket.send_json({"status": "uploading", "message": "Đang tải video lên Cloudinary..."})
         except:
-            logger.info("Client ngắt kết nối trước khi tải lên Cloudinary")
+            logger.info("Client ngắt kết nối trước khi tải lên")
             return
         
-        upload_filename = f"fire_detection_{uuid.uuid4()}.mp4"
+        # Khai báo các biến lưu thông tin Cloudinary
+        cloudinary_url = None
+        cloudinary_public_id = None
+        
+        # Chuẩn bị tên file để tải lên
         try:
-            success, message, result = upload_bytes_to_cloudinary(video_data, filename=upload_filename)
+            filename = f"fire_detection_{uuid.uuid4()}.mp4"
+            upload_success, upload_message, upload_result = upload_bytes_to_cloudinary(video_data, filename)
+            
+            # Lưu lại URL và public_id
+            if upload_success:
+                cloudinary_url = upload_result.get("secure_url")
+                cloudinary_public_id = upload_result.get("public_id")
+                logger.info(f"Tải lên Cloudinary thành công, URL: {cloudinary_url}, public_id: {cloudinary_public_id}")
         except Exception as e:
-            logger.error(f"Lỗi khi tải lên Cloudinary: {str(e)}")
+            logger.error(f"Lỗi khi tải video lên Cloudinary: {str(e)}")
             try:
-                await websocket.send_json({"status": "error", "message": f"Lỗi khi tải lên Cloudinary: {str(e)}"})
+                await websocket.send_json({"status": "error", "message": f"Lỗi khi tải video lên Cloudinary: {str(e)}"})
                 await websocket.close()
             except:
                 pass
             return
             
-        if not success:
-            logger.error(f"Không thể tải video lên Cloudinary: {message}")
-            try:
-                await websocket.send_json({"status": "error", "message": f"Lỗi khi tải lên Cloudinary: {message}"})
-                await websocket.close()
-            except:
-                pass
-            return
-            
-        # Lấy URL video từ Cloudinary
-        cloudinary_url = result.get('secure_url')
-        cloudinary_id = result.get('public_id')
+        # Sử dụng URL và public_id đã lưu ở trên
+        if cloudinary_url is None and "upload_result" in locals():
+            cloudinary_url = upload_result.get('secure_url')
+            cloudinary_public_id = upload_result.get('public_id')
         try:
             await websocket.send_json({
                 "status": "info", 
@@ -426,6 +543,9 @@ async def process_direct_video_websocket(websocket: WebSocket):
                     processed_data, 
                     filename=processed_filename
                 )
+                
+                # Lấy public_id của video đã xử lý
+                cloudinary_processed_id = processed_result.get("public_id")
             except Exception as e:
                 logger.error(f"Lỗi khi tải video đã xử lý lên Cloudinary: {str(e)}")
                 try:
@@ -450,16 +570,78 @@ async def process_direct_video_websocket(websocket: WebSocket):
                 
             if upload_success:
                 processed_url = processed_result.get("secure_url")
+                cloudinary_processed_id = processed_result.get("public_id")
+                
+                # Lưu thông tin video vào cơ sở dữ liệu
+                if user and user.user_id and db:
+                    logger.info(f"Người dùng đã đăng nhập với user_id={user.user_id}, chuẩn bị lưu video vào CSDL")
+                    try:
+                        # Tạo ID cho video mới
+                        video_id = uuid.uuid4()
+                        
+                        # Xác định loại video
+                        if video_type == "youtube":
+                            video_type_enum = VideoTypeEnum.YOUTUBE
+                            youtube_url_value = youtube_url
+                        else:
+                            video_type_enum = VideoTypeEnum.UPLOAD
+                            youtube_url_value = None
+                        
+                        # Tạo bản ghi video
+                        video = Video(
+                            video_id=video_id,
+                            user_id=user.user_id,
+                            original_video_url=cloudinary_url,  # URL video gốc được tải lên
+                            processed_video_url=processed_url,  # URL video đã xử lý
+                            video_type=video_type_enum,
+                            youtube_url=youtube_url_value,
+                            status=StatusEnum.COMPLETED,
+                            fire_detected=fire_detected,
+                            cloudinary_public_id=cloudinary_public_id,  # ID video gốc
+                            cloudinary_processed_id=cloudinary_processed_id  # ID video đã xử lý
+                        )
+                        db.add(video)
+                        
+                        # Thêm lịch sử hoạt động của người dùng
+                        user_history = UserHistory(
+                            history_id=uuid.uuid4(),
+                            user_id=user.user_id,
+                            action_type="upload_video_websocket",
+                            video_id=video_id,
+                            description=f"Tải lên video qua WebSocket. Loại: {video_type_enum}, Phát hiện đám cháy: {'Có' if fire_detected else 'Không'}"
+                        )
+                        db.add(user_history)
+                        
+                        # Lưu vào cơ sở dữ liệu
+                        db.commit()
+                        
+                        logger.info(f"Lưu thông tin video thành công, video_id={video_id}")
+                    except Exception as db_error:
+                        logger.error(f"Lỗi khi lưu thông tin video vào cơ sở dữ liệu: {str(db_error)}")
+                        db.rollback()  # Hoàn tác nếu có lỗi
+                
+                # Kiểm tra xem video có được lưu vào CSDL không
+                video_saved = False
+                save_message = "Đã xử lý video xong"
+                
+                if not user or not user.user_id:
+                    logger.warning("Không lưu video vào CSDL vì người dùng chưa đăng nhập")
+                    save_message = "Đã xử lý video xong. Hãy đăng nhập để lưu video vào tài khoản của bạn"
+                else:
+                    video_saved = True
+                    save_message = "Đã xử lý và lưu video vào tài khoản của bạn"
                 
                 # Thông báo hoàn thành
                 try:
                     await websocket.send_json({
                         "status": "completed",
-                        "message": "Đã xử lý video xong",
+                        "message": save_message,
                         "original_url": cloudinary_url,
                         "processed_url": processed_url,
                         "fire_detected": fire_detected,
-                        "frames_processed": frame_count
+                        "frames_processed": frame_count,
+                        "video_saved": video_saved,
+                        "requires_login": not video_saved
                     })
                 except:
                     logger.info("Client ngắt kết nối trước khi nhận kết quả cuối cùng")

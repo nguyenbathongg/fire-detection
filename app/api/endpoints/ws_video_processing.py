@@ -17,33 +17,19 @@ from datetime import datetime
 
 from app.services.fire_detection import FireDetectionService, predict_and_display
 from app.utils.cloudinary_service import upload_bytes_to_cloudinary
-from app.utils.youtube_downloader import YTDLPDownloader
+from app.utils.video import download_youtube_video_file
 from app.utils.email_service import send_fire_detection_notification
 from app.models.notification import Notification
 from app.models.user import User
 from app.db.base import get_db
 from app.core.config import settings
-from app.schemas.token import TokenPayload
+from app.schemas.user import TokenPayload
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 fire_service = FireDetectionService()
 
-async def get_user_from_token(token: str, db: Session) -> Optional[User]:
-    """
-    Xác thực token và trả về thông tin người dùng
-    """
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        token_data = TokenPayload(**payload)
-    except (JWTError, ValueError):
-        logger.error("Token không hợp lệ hoặc đã hết hạn")
-        return None
-    
-    user = db.query(User).filter(User.user_id == token_data.sub).first()
-    return user
+# Xử lý xác thực được tích hợp trực tiếp vào endpoint
 
 @router.websocket("/direct-process")
 async def process_direct_video_websocket(websocket: WebSocket):
@@ -60,21 +46,31 @@ async def process_direct_video_websocket(websocket: WebSocket):
     db = next(get_db())
     
     try:
-        # Nhận thông tin người dùng và token trước
+        # Xử lý token nếu có (tùy chọn)
         try:
             auth_data = await websocket.receive_json()
             token = auth_data.get("token")
             
-            # Xác thực người dùng nếu có token
+            # Nếu có token, cố gắng xác thực người dùng
             if token:
-                user = await get_user_from_token(token, db)
-                if user:
-                    await websocket.send_json({"status": "auth", "message": f"Xác thực thành công, xin chào {user.username}"})
-                    logger.info(f"Người dùng {user.username} đã xác thực và kết nối WebSocket")
-                else:
+                try:
+                    # Cố gắng xác thực token, nhưng không bắt buộc
+                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                    token_data = TokenPayload(**payload)
+                    user = db.query(User).filter(User.user_id == token_data.sub).first()
+                    
+                    if user:
+                        await websocket.send_json({"status": "auth", "message": f"Xác thực thành công, xin chào {user.username}"})
+                        logger.info(f"Người dùng {user.username} đã xác thực và kết nối WebSocket")
+                    else:
+                        user = None  # Đặt lại user về None nếu không tìm thấy
+                        await websocket.send_json({"status": "auth", "message": "Token hợp lệ nhưng không tìm thấy người dùng, tiếp tục dưới dạng khách"})
+                except (JWTError, ValueError):
+                    user = None  # Không xác thực được
                     await websocket.send_json({"status": "auth", "message": "Token không hợp lệ, tiếp tục dưới dạng khách"})
                     logger.warning("Token không hợp lệ, người dùng kết nối dưới dạng khách")
             else:
+                user = None  # Không có token
                 await websocket.send_json({"status": "auth", "message": "Kết nối dưới dạng khách"})
                 logger.info("Khách kết nối WebSocket")
                 
@@ -82,9 +78,11 @@ async def process_direct_video_websocket(websocket: WebSocket):
             logger.info("Client ngắt kết nối khi xác thực")
             return
         except Exception as e:
+            # Bỏ qua lỗi xác thực, cho phép kết nối không xác thực
+            user = None
             logger.error(f"Lỗi khi xác thực: {str(e)}")
             try:
-                await websocket.send_json({"status": "auth", "message": "Xác thực thất bại, tiếp tục dưới dạng khách"})
+                await websocket.send_json({"status": "auth", "message": "Bỏ qua xác thực, tiếp tục dưới dạng khách"})
             except:
                 pass
             
@@ -319,12 +317,44 @@ async def process_direct_video_websocket(websocket: WebSocket):
             frame_count = 0
             
             # Sử dụng giải pháp đa luồng đã có sẵn trong predict_and_display
+            # Biến để theo dõi email đã được gửi chưa 
+            email_sent = False
+            detection_frame_info = None
+            
             for frame, frame_info in predict_and_display(fire_service.model, cloudinary_url, temp_output_path):
                 frame_count += 1
                 
                 # Nếu phát hiện lửa, cập nhật trạng thái
-                if frame_info.get("fire_detected", False):
+                if frame_info.get("fire_detected", False) and not fire_detected:
                     fire_detected = True
+                    detection_frame_info = frame_info.copy()  # Lưu thông tin frame phát hiện lửa
+                    
+                    # Gửi thông báo phát hiện lửa qua WebSocket
+                    try:
+                        await websocket.send_json({
+                            "status": "alert", 
+                            "message": "PHÁT HIỆN LỬA!",
+                            "frame_info": frame_info
+                        })
+                    except:
+                        pass
+                    
+                    # Chỉ ghi nhận phát hiện lửa, không gửi email ngay (sẽ gửi sau khi hoàn tất xử lý)
+                    if user:
+                        # Ghi log debug
+                        logger.info(f"Người dùng đã đăng nhập: {user.username}, user_id: {user.user_id}")
+                        
+                        # Kiểm tra cài đặt thông báo của người dùng
+                        notification_settings = db.query(Notification).filter(Notification.user_id == user.user_id).first()
+                        
+                        # Ghi log thông tin notification settings
+                        if notification_settings:
+                            logger.info(f"Tìm thấy cài đặt thông báo: enable_email_notification={notification_settings.enable_email_notification}")
+                            # Thông báo cho client về trạng thái email
+                            if notification_settings.enable_email_notification:
+                                await websocket.send_json({"status": "info", "message": "Sẽ gửi email thông báo sau khi xử lý hoàn tất..."})
+                        else:
+                            logger.info(f"Không tìm thấy cài đặt thông báo cho user_id={user.user_id}")
                 
                 # Chuyển frame thành JPEG và gửi qua WebSocket
                 try:
@@ -433,6 +463,52 @@ async def process_direct_video_websocket(websocket: WebSocket):
                     })
                 except:
                     logger.info("Client ngắt kết nối trước khi nhận kết quả cuối cùng")
+                
+                # Gửi email thông báo nếu phát hiện lửa và chưa gửi trước đó 
+                # Bây giờ chúng ta có cả URL của video gốc và video đã xử lý
+                if fire_detected and user and not email_sent:
+                    logger.info(f"Bắt đầu gửi email thông báo phát hiện lửa sau khi hoàn tất xử lý")
+                    try:
+                        # Thông báo cho client
+                        try:
+                            await websocket.send_json({"status": "info", "message": "Chuẩn bị gửi email thông báo phát hiện lửa..."})
+                        except:
+                            pass  # Không dừng quá trình nếu gửi thông báo thất bại
+                            
+                        # Kiểm tra cài đặt thông báo của người dùng lần nữa
+                        notification_settings = db.query(Notification).filter(Notification.user_id == user.user_id).first()
+                        logger.info(f"Kiểm tra lại cài đặt thông báo cho user_id={user.user_id}")
+                        
+                        if notification_settings and notification_settings.enable_email_notification:
+                            # Gửi email thông báo phát hiện lửa
+                            detection_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                            video_title = f"Phát hiện đám cháy trong video"
+                            confidence = detection_frame_info.get("confidence", 0.8) if detection_frame_info else 0.8
+                            
+                            logger.info(f"Gửi email thông báo cho {user.email} với video gốc: {cloudinary_url} và video đã xử lý: {processed_url}")
+                            
+                            # Gọi hàm gửi email
+                            email_result = send_fire_detection_notification(
+                                user_email=user.email,
+                                video_title=video_title,
+                                detection_time=detection_time,
+                                video_url=cloudinary_url,
+                                processed_video_url=processed_url,
+                                confidence=confidence
+                            )
+                            
+                            if email_result:
+                                logger.info(f"Đã gửi email thông báo phát hiện lửa đến {user.email} thành công")
+                                email_sent = True
+                                try:
+                                    await websocket.send_json({"status": "email", "message": f"Đã gửi email thông báo phát hiện lửa đến {user.email}"})
+                                except:
+                                    pass
+                            else:
+                                logger.error(f"Không thể gửi email thông báo đến {user.email}")
+                    except Exception as email_error:
+                        logger.error(f"Lỗi khi gửi email thông báo: {str(email_error)}")
+                        # Lỗi này không ảnh hưởng đến kết quả cuối cùng, chỉ ghi log
             else:
                 # Thông báo lỗi
                 try:
@@ -492,6 +568,7 @@ async def download_youtube_video(youtube_url: str, websocket: Optional[WebSocket
     Returns:
         bytes: Dữ liệu video
     """
+    # Tạo file tạm thời
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_file:
         temp_path = temp_file.name
     
@@ -499,24 +576,15 @@ async def download_youtube_video(youtube_url: str, websocket: Optional[WebSocket
         if websocket:
             await websocket.send_json({"status": "info", "message": "Đang trích xuất thông tin YouTube..."})
         
-        # Cấu hình yt-dlp
-        ydl_opts = {
-            'format': 'best[ext=mp4]/best',
-            'outtmpl': temp_path,
-            'quiet': True,
-        }
-        
-        # Tải video trong một thread riêng
-        def _download():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([youtube_url])
+        # Sử dụng hàm có sẵn trong utils.video
+        # Do hàm download_youtube_video_file là hàm đồng bộ, chúng ta chạy nó trong một thread riêng
         
         # Thực hiện tải xuống
         if websocket:
             await websocket.send_json({"status": "info", "message": "Đang tải video từ YouTube..."})
             
         # Chạy trong event loop riêng để không block
-        await asyncio.to_thread(_download)
+        await asyncio.to_thread(download_youtube_video_file, youtube_url, temp_path)
         
         # Báo cáo kích thước file
         file_size = os.path.getsize(temp_path) / (1024 * 1024)  # MB

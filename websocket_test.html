@@ -149,6 +149,14 @@
     
     <div class="container">
         <div class="input-section">
+            <div class="auth-section">
+                <div class="form-group">
+                    <label for="authToken">Token xác thực (tùy chọn):</label>
+                    <input type="text" id="authToken" placeholder="Dán token xác thực ở đây để gửi email">
+                    <small>*Nếu có token, hệ thống có thể gửi email thông báo khi phát hiện lửa</small>
+                </div>
+            </div>
+            
             <div class="tab-buttons">
                 <button class="tab-button active" data-tab="upload">Upload Video</button>
                 <button class="tab-button" data-tab="youtube">YouTube URL</button>
@@ -255,6 +263,21 @@
             
             socket.onopen = function() {
                 addLog('Đã kết nối WebSocket', 'success');
+                
+                // Gửi token xác thực nếu có
+                const token = document.getElementById('authToken').value.trim();
+                const authData = {
+                    token: token
+                };
+                
+                if (token) {
+                    addLog('Gửi token xác thực...');
+                } else {
+                    addLog('Kết nối dưới dạng khách (không có token)');
+                }
+                
+                // Gửi thông tin xác thực trước
+                socket.send(JSON.stringify(authData));
             };
             
             socket.onclose = function() {

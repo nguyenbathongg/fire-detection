@@ -117,3 +117,35 @@ def change_password(
     db.add(current_user)
     db.commit()
     return {"message": "Đổi mật khẩu thành công"} 
+
+
+@router.post("/verify-token", response_model=UserSchema)
+def verify_token(
+    token: str,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Xác thực token và trả về thông tin người dùng nếu token hợp lệ
+    """
+    try:
+        from jose import jwt, JWTError
+        from app.schemas.user import TokenPayload
+        
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_data = TokenPayload(**payload)
+        
+        # Tìm người dùng trong database
+        user = db.query(User).filter(User.user_id == token_data.sub).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Người dùng không tồn tại"
+            )
+        
+        return user
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token không hợp lệ hoặc đã hết hạn",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

@@ -7,6 +7,7 @@ from app.api.endpoints import (
     notifications,
     user_history,
     videos_detect_by_url,
+    ws_video_processing,
 )
 
 api_router = APIRouter()
@@ -18,3 +19,4 @@ api_router.include_router(videos.router, prefix="/videos", tags=["videos"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(user_history.router, prefix="/history", tags=["user_history"])
 api_router.include_router(videos_detect_by_url.router, prefix="/videos/detect-by-url", tags=["videos_detect_by_url"])
+api_router.include_router(ws_video_processing.router, prefix="/ws", tags=["websocket"])

@@ -11,13 +11,278 @@ import logging
 from datetime import datetime
 from pathlib import Path
 import asyncio
+import threading
+import queue
 from fastapi import WebSocket
+import hashlib
 
 from app.core.config import settings
-from app.utils.cloudinary_service import upload_bytes_to_cloudinary, download_from_cloudinary
+from app.utils.cloudinary_service import upload_bytes_to_cloudinary, download_from_cloudinary, delete_from_cloudinary
 
 logger = logging.getLogger(__name__)
 
+# Cache toàn cục cho các URL Cloudinary để tái sử dụng giữa các lần gọi
+# Sử dụng dict để lưu trữ URL và thông tin liên quan
+global_cloudinary_cache = {}
+# Biến lưu trữ URL của lần tải lên gần nhất
+last_cloudinary_url = None
+last_cloudinary_result = None
+
+
+def predict_and_display(model, video_path, output_path=None, initial_skip_frames=2):
+    """
+    Xử lý video để phát hiện đám cháy và trả về từng frame đã xử lý.
+    Hoạt động như một generator để hỗ trợ streaming realtime.
+    
+    Args:
+        model: Mô hình YOLO cho phát hiện đám cháy
+        video_path: Đường dẫn hoặc URL của video
+        output_path: Đường dẫn lưu video kết quả (nếu None, không lưu)
+        initial_skip_frames: Số frame ban đầu bỏ qua
+        
+    Yields:
+        Tuple[np.ndarray, Dict]: Frame đã xử lý và thông tin kèm theo
+    """
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        print(f"Không thể mở video: {video_path}")
+        return
+
+    # Warm-up model với frame đầu tiên
+    ret, dummy_frame = cap.read()
+    if ret:
+        model.predict(dummy_frame, save=False, conf=0.5, verbose=False)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
+    fps_video = cap.get(cv2.CAP_PROP_FPS) or 30
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # Khởi tạo VideoWriter nếu có output_path
+    out = None
+    if output_path:
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        out = cv2.VideoWriter(output_path, fourcc, fps_video, (width, height))
+
+    frame_queue = queue.Queue(maxsize=0)
+    result_queue = queue.Queue(maxsize=0)
+    stop_event = threading.Event()
+    frame_idx = 0
+
+    def capture_thread():
+        nonlocal frame_idx
+        while not stop_event.is_set():
+            ret, frame = cap.read()
+            if not ret:
+                stop_event.set()
+                break
+            frame_queue.put((frame_idx, frame))
+            frame_idx += 1
+
+    def inference_thread():
+        processing_times = []
+        max_samples = 10
+        skip_frames = initial_skip_frames
+        frame_duration = 1.0 / fps_video
+
+        while not stop_event.is_set() or not frame_queue.empty():
+            try:
+                idx, frame = frame_queue.get(timeout=0.1)
+                frames_left = total_frames - idx
+                if frames_left <= fps_video:
+                    skip = False
+                else:
+                    skip = idx % skip_frames != 0
+
+                if skip:
+                    result_queue.put((idx, frame, None, None, True, 0.0, True))
+                    frame_queue.task_done()
+                    continue
+
+                start_time = time.time()
+                result = model.predict(frame, save=False, conf=0.5, verbose=False)[0]
+                detections = result.boxes
+                segments = getattr(result, 'masks', None)
+                processing_time = time.time() - start_time
+
+                processing_times.append(processing_time)
+                if len(processing_times) > max_samples:
+                    processing_times.pop(0)
+
+                if idx >= 10:
+                    avg_processing_time = sum(processing_times) / len(processing_times)
+                    skip_frames = min(int(np.ceil(avg_processing_time / frame_duration)), 3) if avg_processing_time > frame_duration else 0
+
+                result_queue.put((idx, frame, detections, segments, False,
+                                  sum(processing_times) / len(processing_times) if processing_times else 0, False))
+                frame_queue.task_done()
+            except queue.Empty:
+                continue
+
+    def draw_and_yield():
+        prev_time = time.time()
+        avg_fps = 0.0
+        
+        # Bộ nhớ tạm để giữ bounding box
+        bbox_cache = {}  
+        # Số frame giữ lại bounding box sau khi mất
+        max_hold_frames = 3
+        # Bộ nhớ tạm cho các mask
+        mask_cache = {}
+        mask_hold_frames = 2
+
+        while not stop_event.is_set() or not result_queue.empty() or not frame_queue.empty():
+            try:
+                idx, frame, detections, segments, skip_frames, avg_processing_time, is_skipped = result_queue.get(timeout=0.1)
+                video_time = idx / fps_video
+                video_time_str = time.strftime("%H:%M:%S", time.gmtime(video_time))
+
+                fire_detected = False
+                total_fire_area = 0.0
+                
+                current_boxes = []
+                current_masks = []
+                
+                # Xử lý và lưu trữ mask
+                if segments is not None:
+                    masks = segments.data.cpu().numpy()
+                    for mask in masks:
+                        mask_resized = cv2.resize(mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+                        # Lưu mask vào cache hiện tại
+                        mask_hash = hash(mask_resized.tobytes())
+                        current_masks.append((mask_resized, mask_hash))
+                        
+                        # Vẽ mask
+                        blue_mask = np.zeros_like(frame, dtype=np.uint8)
+                        blue_mask[mask_resized > 0.5] = (255, 0, 0)
+                        alpha = 0.6
+                        overlay = frame.copy()
+                        overlay[mask_resized > 0.5] = blue_mask[mask_resized > 0.5]
+                        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+                
+                # Cập nhật cache mask
+                new_mask_cache = {}
+                for mask_resized, mask_hash in current_masks:
+                    new_mask_cache[mask_hash] = (mask_resized, mask_hold_frames)
+                
+                # Giữ lại các mask trong cache
+                for mask_hash, (stored_mask, remain) in mask_cache.items():
+                    if mask_hash not in new_mask_cache and remain > 0:
+                        new_mask_cache[mask_hash] = (stored_mask, remain - 1)
+                        
+                        # Vẽ mask từ cache
+                        blue_mask = np.zeros_like(frame, dtype=np.uint8)
+                        blue_mask[stored_mask > 0.5] = (255, 0, 0)
+                        alpha = 0.6  # Giảm độ đậm cho mask cũ
+                        overlay = frame.copy()
+                        overlay[stored_mask > 0.5] = blue_mask[stored_mask > 0.5]
+                        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+                
+                mask_cache = new_mask_cache
+
+                # Xử lý bounding box
+                if detections is not None:
+                    for det in detections:
+                        if int(det.cls[0].item()) == 0:
+                            x1, y1, x2, y2 = det.xyxy[0].cpu().numpy().astype(int)
+                            conf = float(det.conf[0].item())
+                            current_boxes.append(((x1, y1, x2, y2), conf))
+
+                # Cập nhật cache bounding box
+                new_cache = {}
+
+                # Thêm các box mới vào cache
+                for (x1, y1, x2, y2), conf in current_boxes:
+                    key = (x1, y1, x2, y2)
+                    new_cache[key] = (max_hold_frames, conf)  # (số frame giữ lại, confidence)
+
+                # Giữ lại các box cũ trong cache
+                for key, (remain, old_conf) in bbox_cache.items():
+                    if key not in new_cache and remain > 0:
+                        new_cache[key] = (remain - 1, old_conf)
+
+                bbox_cache = new_cache
+
+                # Vẽ tất cả bounding box từ cache
+                for (x1, y1, x2, y2), (remain, conf) in bbox_cache.items():
+                    if remain > 0:
+                        # Alpha giảm dần theo số frame còn lại để tạo hiệu ứng mờ dần
+                        box_alpha = 1.0 if remain == max_hold_frames else 0.6 + (0.4 * remain / max_hold_frames)
+                        
+                        # Màu đậm dần theo confidence
+                        color_intensity = min(255, int(200 + (conf * 55)))
+                        box_color = (color_intensity, 0, 0)
+                        
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 4)
+                        label = f"{conf:.2f}"
+                        (text_width, text_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 1.5, 1)
+                        cv2.rectangle(frame, (x1, y1 - text_height - 8), (x1 + text_width + 6, y1), box_color, -1)
+                        cv2.putText(frame, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
+                        
+                        area = ((x2 - x1) * (y2 - y1)) / (width * height) * 100
+                        total_fire_area += area
+                        fire_detected = True
+
+                # Tính FPS đơn giản nếu không skip frame
+                if not is_skipped:
+                    current_time = time.time()
+                    avg_fps = 1.0 / (current_time - prev_time)
+                    prev_time = current_time
+
+                # Vẽ FPS
+                # Nội dung và vị trí
+                text = f"FPS: {avg_fps:.0f}"
+                position = (5, 35)
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 1.2
+                thickness = 2
+
+                # Tính kích thước ô chữ
+                (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
+                x, y = position
+                box_coords = ((x - 5, y - text_height - 10), (x + text_width + 5, y + 5))
+
+                # Tạo lớp overlay để vẽ nền trong suốt
+                overlay = frame.copy()
+                cv2.rectangle(overlay, box_coords[0], box_coords[1], (255, 0, 0), -1)  # màu nền xanh dương
+
+                # Áp dụng overlay trong suốt
+                alpha = 0.25  # Độ trong suốt
+                cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+
+                # Vẽ chữ màu trắng lên frame
+                cv2.putText(frame, text, position, font, font_scale, (255, 255, 255), thickness)
+
+                frame_info = {
+                    "frame": idx,
+                    "video_time": video_time_str,
+                    "fire_detected": fire_detected,
+                    "total_area": round(float(total_fire_area), 4)
+                }
+
+                out.write(frame)
+                if not is_skipped:
+                    yield frame, frame_info
+
+                result_queue.task_done()
+
+            except queue.Empty:
+                continue
+
+    capture_t = threading.Thread(target=capture_thread, daemon=True)
+    inference_t = threading.Thread(target=inference_thread, daemon=True)
+    capture_t.start()
+    inference_t.start()
+
+    try:
+        yield from draw_and_yield()
+    finally:
+        stop_event.set()
+        capture_t.join(timeout=1)
+        inference_t.join(timeout=1)
+        cap.release()
+        out.release()
 
 class FireDetectionService:      
     def __init__(self):
@@ -116,6 +381,8 @@ class FireDetectionService:
             self.model = None
             return False
             
+
+        
     def detect_fire_from_memory(self, video_data: bytes) -> Tuple[bool, List[Dict], Optional[Tuple[bytes, str]]]:
         """
         Phát hiện đám cháy trong video từ bộ nhớ
@@ -129,32 +396,59 @@ class FireDetectionService:
                 - Danh sách các đoạn thời gian phát hiện đám cháy
                 - Tuple gồm dữ liệu nhị phân của frame đám cháy rõ nhất và định dạng
         """
+        global last_cloudinary_url, last_cloudinary_result, global_cloudinary_cache
+        
         try:
             # Đo thời gian xử lý
             total_start_time = time.time()
             
-            # Tạo file tạm thời để đọc video
-            temp_input_path = f"temp_input_{uuid.uuid4()}.mp4"
-            try:
-                # Đo thời gian ghi file
-                file_write_start = time.time()
-                with open(temp_input_path, 'wb') as f:
-                    f.write(video_data)
-                logger.info(f"Thời gian ghi file tạm: {time.time() - file_write_start:.2f} giây")
+            # Kiểm tra xem có URL cache mới nhất không
+            cloudinary_url = None
+            if last_cloudinary_url is not None:
+                logger.info(f"Sử dụng URL Cloudinary gần nhất: {last_cloudinary_url}")
+                cloudinary_url = last_cloudinary_url
+            else:
+                # Kiểm tra cache dựa trên hash của video
+                video_hash = hashlib.md5(video_data[:1024*1024]).hexdigest()
                 
-                # Đo thời gian mở video
-                open_start = time.time()
-                cap = cv2.VideoCapture(temp_input_path)
-                if not cap.isOpened():
-                    logger.error(f"Không thể mở video từ file tạm: {temp_input_path}")
-                    return False, [], None
-                logger.info(f"Thời gian mở video: {time.time() - open_start:.2f} giây")
-                
-                # Ghi nhớ để xóa file tạm sau khi xử lý xong
-                is_temp_file_created = True
-            except Exception as e:
-                logger.error(f"Không thể tạo file tạm thời để đọc video: {str(e)}")
+                if video_hash in global_cloudinary_cache:
+                    logger.info(f"Sử dụng URL Cloudinary từ cache cho hash {video_hash[:8]}")
+                    cloudinary_url = global_cloudinary_cache[video_hash]['url']
+                    last_cloudinary_url = cloudinary_url
+                    last_cloudinary_result = global_cloudinary_cache[video_hash]['result']
+                else:
+                    # Tải video lên Cloudinary nếu chưa có trong cache
+                    logger.info(f"Đang tải video lên Cloudinary...")
+                    upload_start_time = time.time()
+                    process_uuid = str(uuid.uuid4())
+                    success, message, result = upload_bytes_to_cloudinary(video_data, filename=f"fire_detection_{process_uuid}.mp4")
+                    
+                    if not success or not result:
+                        logger.error(f"Không thể tải video lên Cloudinary: {message}")
+                        return False, [], None
+                    
+                    cloudinary_url = result.get('secure_url')
+                    logger.info(f"Đã tải video lên Cloudinary thành công: {cloudinary_url}")
+                    logger.info(f"Thời gian tải lên Cloudinary: {time.time() - upload_start_time:.2f} giây")
+                    
+                    # Lưu vào cache toàn cục
+                    global_cloudinary_cache[video_hash] = {
+                        'url': cloudinary_url,
+                        'result': result,
+                        'timestamp': time.time()
+                    }
+                    
+                    # Cập nhật lần tải lên gần nhất
+                    last_cloudinary_url = cloudinary_url
+                    last_cloudinary_result = result
+            
+            # Mở video từ URL Cloudinary
+            open_start = time.time()
+            cap = cv2.VideoCapture(cloudinary_url)
+            if not cap.isOpened():
+                logger.error(f"Không thể mở video từ URL Cloudinary: {cloudinary_url}")
                 return False, [], None
+            logger.info(f"Thời gian mở video từ Cloudinary: {time.time() - open_start:.2f} giây")
             
             fps = cap.get(cv2.CAP_PROP_FPS)
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -317,7 +611,7 @@ class FireDetectionService:
     def process_video_from_memory(self, video_data: bytes) -> Tuple[bool, bytes, Dict]:
         """
         Xử lý video để đánh dấu các vùng phát hiện đám cháy,
-        không lưu file tạm, xử lý trong bộ nhớ
+        sử dụng Cloudinary để xử lý video và xử lý đa luồng
         
         Args:
             video_data: Dữ liệu nhị phân của video
@@ -328,311 +622,117 @@ class FireDetectionService:
                 - Dữ liệu nhị phân của video đã xử lý
                 - Thông tin phát hiện
         """
+        global last_cloudinary_url, last_cloudinary_result, global_cloudinary_cache
+        
         # Đo thời gian xử lý
         total_start_time = time.time()
+        temp_output_path = None
         
         try:
-            # Phương án dự phòng: tạo file tạm thời để đọc video
-            temp_input_path = f"temp_input_{uuid.uuid4()}.mp4"
-            try:
-                # Đo thời gian ghi file
-                file_write_start = time.time()
-                with open(temp_input_path, 'wb') as f:
-                    f.write(video_data)
-                logger.info(f"Thời gian ghi file tạm: {time.time() - file_write_start:.2f} giây")
+            # Kiểm tra xem có URL cache mới nhất không
+            cloudinary_url = None
+            if last_cloudinary_url is not None:
+                logger.info(f"Sử dụng URL Cloudinary gần nhất: {last_cloudinary_url}")
+                cloudinary_url = last_cloudinary_url
+            else:
+                # Kiểm tra cache dựa trên hash của video
+                video_hash = hashlib.md5(video_data[:1024*1024]).hexdigest()
                 
-                # Đo thời gian mở video
-                open_start = time.time()
-                cap = cv2.VideoCapture(temp_input_path)
-                if not cap.isOpened():
-                    logger.error(f"Không thể mở video từ file tạm: {temp_input_path}")
-                    return False, None, {}
-                logger.info(f"Thời gian mở video: {time.time() - open_start:.2f} giây")
-                
-                # Ghi nhớ để xóa file tạm sau khi xử lý xong
-                is_temp_file_created = True
-            except Exception as e:
-                logger.error(f"Không thể tạo file tạm thời để đọc video: {str(e)}")
-                return False, None, {}
+                if video_hash in global_cloudinary_cache:
+                    logger.info(f"Sử dụng URL Cloudinary từ cache cho hash {video_hash[:8]}")
+                    cloudinary_url = global_cloudinary_cache[video_hash]['url']
+                    last_cloudinary_url = cloudinary_url
+                    last_cloudinary_result = global_cloudinary_cache[video_hash]['result']
+                else:
+                    # Tải video lên Cloudinary nếu chưa có trong cache
+                    logger.info(f"Đang tải video lên Cloudinary...")
+                    upload_start_time = time.time()
+                    process_uuid = str(uuid.uuid4())
+                    success, message, result = upload_bytes_to_cloudinary(video_data, filename=f"fire_detection_{process_uuid}.mp4")
+                    
+                    if not success or not result:
+                        logger.error(f"Không thể tải video lên Cloudinary: {message}")
+                        return False, None, {}
+                    
+                    cloudinary_url = result.get('secure_url')
+                    logger.info(f"Đã tải video lên Cloudinary thành công: {cloudinary_url}")
+                    logger.info(f"Thời gian tải lên Cloudinary: {time.time() - upload_start_time:.2f} giây")
+                    
+                    # Lưu vào cache toàn cục
+                    global_cloudinary_cache[video_hash] = {
+                        'url': cloudinary_url,
+                        'result': result,
+                        'timestamp': time.time()
+                    }
+                    
+                    # Cập nhật lần tải lên gần nhất
+                    last_cloudinary_url = cloudinary_url
+                    last_cloudinary_result = result
             
-            # Xử lý video với phát hiện đám cháy
-            skip_frames = 3  # Giảm số frame bỏ qua để tránh hiệu ứng nhấp nháy
+            # Tạo file tạm để lưu video đã xử lý
+            temp_output_path = f"temp_output_{uuid.uuid4()}.mp4"
             
             # Lưu thời gian bắt đầu xử lý
             processing_start_time = time.time()
             
-            fps = cap.get(cv2.CAP_PROP_FPS) or 30
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            frame_idx = 0
+            # Sử dụng hàm predict_and_display để xử lý video với đa luồng
+            logger.info(f"Bắt đầu xử lý video đa luồng")
             
-            # Lưu các frame đã xử lý
-            processed_frames = []
-            
-            detections = []
+            # Thông tin phát hiện đám cháy
             fire_detected = False
+            detections = []
+            frame_count = 0
+            max_confidence = 0
+            max_confidence_time = None
             
-            logger.info(f"Bắt đầu xử lý video từ bộ nhớ")
-            logger.info(f"Video params: fps={fps}, size={width}x{height}")
+            # Xử lý video với hàm predict_and_display
+            for frame, frame_info in predict_and_display(self.model, cloudinary_url, temp_output_path, initial_skip_frames=3):
+                frame_count += 1
+                
+                # Ghi nhận thông tin phát hiện đám cháy
+                if frame_info["fire_detected"]:
+                    fire_detected = True
+                    
+                    # Tính confidence dựa trên diện tích
+                    area_confidence = min(1.0, frame_info["total_area"] / 10)
+                    
+                    # Ghi nhận thời điểm có confidence cao nhất
+                    if area_confidence > max_confidence:
+                        max_confidence = area_confidence
+                        max_confidence_time = frame_info["video_time"]
+                    
+                    # Thêm thông tin phát hiện
+                    detections.append({
+                        "frame": frame_info["frame"],
+                        "time": frame_info["video_time"],
+                        "confidence": area_confidence,
+                        "area": frame_info["total_area"]
+                    })
             
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                    
-                # Hiển thị tất cả các khung hình, không bỏ qua
-                video_time = frame_idx / fps
-                video_time_str = time.strftime("%H:%M:%S", time.gmtime(video_time))
-                
-                # Xử lý phát hiện đám cháy trên frame hiện tại
-                process_this_frame = (frame_idx % skip_frames == 0)
-                current_fire_detected = False
-                total_fire_area = 0.0
-
-                
-                if process_this_frame:
-                    # Resize frame để tăng tốc độ
-                    h, w = frame.shape[:2]
-                    detection_size = 640  # Kích thước tham chiếu cho phát hiện
-                    
-                    # Tính tỷ lệ resize, giữ tỷ lệ khung hình
-                    if w > h:
-                        new_w = detection_size
-                        new_h = int(h * (detection_size / w))
-                    else:
-                        new_h = detection_size
-                        new_w = int(w * (detection_size / h))
-                        
-                    # Resize frame cho phát hiện
-                    detection_frame = cv2.resize(frame, (new_w, new_h))
-                    
-                    if self.model:
-                        # Xử lý các khung hình cần thiết với YOLO
-                        result = self.model.predict(
-                            detection_frame, 
-                            save=False, 
-                            conf=0.7,  # Tăng ngưỡng confidence lên để giảm nhận diện sai
-                            verbose=False,
-                            device=self.device if self.use_gpu else 'cpu',
-                            half=self.use_gpu  # Sử dụng FP16 nếu có GPU
-                        )[0]
-                        boxes = result.boxes
-                        segments = getattr(result, 'masks', None)
-                        
-                        # Xử lý mask (nếu có)
-                        if segments is not None:
-                            masks = segments.data.cpu().numpy()
-                            for i, mask in enumerate(masks):
-                                # Chỉ xử lý mask của class lửa (class 0)
-                                cls_id = int(boxes[i].cls[0].item()) if i < len(boxes) else -1
-                                conf = float(boxes[i].conf[0].item()) if i < len(boxes) else 0
-                                
-                                if cls_id == 0 and conf >= 0.6:  # Lửa (class 0)
-                                    # Resize mask về kích thước gốc và tạo mask nhị phân
-                                    mask_resized = cv2.resize(mask, (frame.shape[1], frame.shape[0]))
-                                    mask_binary = (mask_resized > 0.5).astype(np.uint8) * 255
-                                    
-                                    # Tạo colored mask và vẽ lên frame
-                                    colored_mask = np.zeros_like(frame, dtype=np.uint8)
-                                    colored_mask[mask_resized > 0.5] = (0, 0, 255)  # Màu đỏ cho vùng lửa
-                                    frame = cv2.addWeighted(frame, 1.0, colored_mask, 0.5, 0)
-                                    
-                                    # Tìm các contour trong mask
-                                    contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                                    
-                                    # Vẽ bounding box xung quanh các contour
-                                    for contour in contours:
-                                        if cv2.contourArea(contour) > 100:  # Lọc vùng quá nhỏ
-                                            x, y, w, h = cv2.boundingRect(contour)
-                                            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-                                            cv2.putText(frame, f"{conf:.2f}", (x, y-10), 
-                                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
-                                            
-                                            # Tính diện tích lửa
-                                            fire_area = (w * h) / (width * height) * 100
-                                            total_fire_area += fire_area
-                                            current_fire_detected = True
-                        
-                        # Xử lý bounding boxes cho lửa
-                        # Lọc các class và confidence
-                        for det in boxes:
-                            cls_id = int(det.cls[0].item())
-                            conf = float(det.conf[0].item())
-                            
-                            # Xác định nếu đây là lửa (class 0) hoặc khói (class 1 nếu có)
-                            # Chỉ lấy các phát hiện có độ tin cậy cao
-                            if cls_id == 0 and conf >= 0.7:  # Class 0 là lửa - tăng ngưỡng lên 0.7
-                                x1, y1, x2, y2 = det.xyxy[0].cpu().numpy().astype(int)
-                                
-                                # Xác minh thêm bằng cách kiểm tra màu sắc trong vùng bbox
-                                roi = frame[max(0, y1):min(y2, height-1), max(0, x1):min(x2, width-1)]
-                                if roi.size > 0:  # Đảm bảo ROI có kích thước hợp lệ
-                                    # Chuyển đổi sang HSV và kiểm tra vùng màu của lửa
-                                    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-                                    # Định nghĩa range màu lửa trong HSV
-                                    lower_fire1 = np.array([0, 120, 100])
-                                    upper_fire1 = np.array([10, 255, 255])
-                                    lower_fire2 = np.array([170, 120, 100])
-                                    upper_fire2 = np.array([180, 255, 255])
-                                    
-                                    mask1 = cv2.inRange(hsv, lower_fire1, upper_fire1)
-                                    mask2 = cv2.inRange(hsv, lower_fire2, upper_fire2)
-                                    fire_mask = cv2.bitwise_or(mask1, mask2)
-                                    
-                                    # Tính % pixel lửa trong bbox
-                                    fire_pixel_pct = np.count_nonzero(fire_mask) / fire_mask.size * 100
-                                    
-                                    # Chỉ vẽ nếu có đủ pixel lửa trong bbox
-                                    if fire_pixel_pct > 5:  # Yêu cầu ít nhất 5% pixel trong bbox là lửa
-                                        # Vẽ bbox
-                                        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-                                        cv2.putText(frame, f"{conf:.2f}", (x1, y1 - 10),
-                                                  cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
-                                        area = ((x2 - x1) * (y2 - y1)) / (width * height) * 100
-                                        total_fire_area += area
-                                        current_fire_detected = True
-                    else:
-                        # Phương pháp dự phòng sử dụng phân tích màu sắc
-                        # Phân tích màu sắc để phát hiện lửa - sử dụng ngưỡng cao hơn
-                        current_fire_detected, confidence = self.detect_fire_with_color_analysis(detection_frame)
-                        
-                        if current_fire_detected and confidence > 5.0:  # Tăng ngưỡng để giảm false positive
-                            # Phân tích vùng màu lửa
-                            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-                            lower_red1 = np.array([0, 120, 70])
-                            upper_red1 = np.array([10, 255, 255])
-                            lower_red2 = np.array([170, 120, 70])
-                            upper_red2 = np.array([180, 255, 255])
-                            
-                            mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-                            mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-                            mask = cv2.bitwise_or(mask1, mask2)
-                            
-                            # Tìm contours của vùng lửa
-                            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                            
-                            # Vẽ contours lên frame
-                            for contour in contours:
-                                # Lọc những contour quá nhỏ
-                                if cv2.contourArea(contour) > 50:  # Ngưỡng diện tích
-                                    # Vẽ bounding box màu đỏ quanh vùng lửa
-                                    x, y, w, h = cv2.boundingRect(contour)
-                                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                                    
-                                    area = (w * h) / (width * height) * 100
-                                    total_fire_area += area
-                    
-                    # Cập nhật trạng thái phát hiện lửa
-                    if current_fire_detected:
-                        fire_detected = True
-                        detections.append({
-                            "frame": frame_idx,
-                            "time": video_time,
-                            "confidence": round(float(0.8), 4),  # Giá trị mặc định cho phương pháp dự phòng
-                            "area": round(float(total_fire_area), 4)
-                        })
-
-
-
-                
-                # Thêm timestamp và thông tin phát hiện
-                cv2.putText(frame, video_time_str, (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                           
-                if current_fire_detected:
-                    cv2.putText(frame, f"FIRE DETECTED - Area: {total_fire_area:.2f}%", (10, 70),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                
-                # Lưu frame đã xử lý vào mảng
-                processed_frames.append(frame)
-                frame_idx += 1
+            logger.info(f"Xử lý xong {frame_count} frames")
+            logger.info(f"Thời gian xử lý: {time.time() - processing_start_time:.2f} giây")
             
-            # Giải phóng resources
-            cap.release()
-            
-            # Xóa file tạm thời nếu có
-            if 'is_temp_file_created' in locals() and is_temp_file_created:
-                if os.path.exists(temp_input_path):
-                    os.remove(temp_input_path)
-                    logger.info(f"Đã xóa file tạm thời: {temp_input_path}")
-            
-            # Ghi video đã xử lý vào bộ nhớ sử dụng imageio
-            processed_video_data = None
-            try:
-                import imageio
-                # Mở buffer cho video đầu ra
-                output_buffer = io.BytesIO()
+            # Đọc video đã xử lý vào bộ nhớ
+            if os.path.exists(temp_output_path):
+                with open(temp_output_path, 'rb') as f:
+                    processed_video_data = f.read()
                 
-                # Đảm bảo kích thước frame là số chẵn (yêu cầu của một số codec)
-                for i in range(len(processed_frames)):
-                    h, w = processed_frames[i].shape[:2]
-                    if w % 2 == 1:
-                        processed_frames[i] = processed_frames[i][:, :-1]
-                    if h % 2 == 1:
-                        processed_frames[i] = processed_frames[i][:-1, :]
-                
-                # Lấy kích thước mới (có thể đã thay đổi)
-                if processed_frames:
-                    height, width = processed_frames[0].shape[:2]
-                
-                # Tạo writer với các tham số phù hợp
-                with imageio.get_writer(output_buffer, format='mp4', fps=fps, 
-                                       codec='h264', quality=8, macro_block_size=1,
-                                       ffmpeg_log_level='error') as writer:
-                    # Lưu từng frame vào video
-                    for frame in processed_frames:
-                        # Chuyển từ BGR (OpenCV) sang RGB (imageio)
-                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        writer.append_data(frame_rgb)
-                
-                # Lấy dữ liệu video
-                output_buffer.seek(0)
-                processed_video_data = output_buffer.getvalue()
-                
-            except Exception as e:
-                logger.error(f"Lỗi khi sử dụng imageio: {str(e)}")
-                
-                # Sử dụng OpenCV để tạo video tạm và đọc lại vào bộ nhớ
-                try:
-                    logger.info("Sử dụng phương án dự phòng với OpenCV")
-                    # Tạo file tạm thời với tên duy nhất
-                    temp_video_path = f"temp_video_{uuid.uuid4()}.mp4"
-                    
-                    # Tạo VideoWriter
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                    out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
-                    
-                    # Ghi từng frame vào video
-                    for frame in processed_frames:
-                        out.write(frame)
-                    
-                    # Đóng VideoWriter
-                    out.release()
-                    
-                    # Đọc file video vào bộ nhớ
-                    with open(temp_video_path, 'rb') as f:
-                        processed_video_data = f.read()
-                    
-                    # Xóa file tạm thời
-                    if os.path.exists(temp_video_path):
-                        os.remove(temp_video_path)
-                    
-                except Exception as backup_error:
-                    logger.error(f"Không thể tạo video với phương án dự phòng: {str(backup_error)}")
-                    return False, None, {}
-            
-            if not processed_video_data:
-                logger.error("Không thể tạo video, dữ liệu rỗng")
+                # Xóa file tạm thời
+                os.remove(temp_output_path)
+                logger.info(f"Đã xóa file tạm: {temp_output_path}")
+            else:
+                logger.error(f"Không tìm thấy file video đã xử lý: {temp_output_path}")
                 return False, None, {}
             
-            logger.info(f"Đã xử lý xong video trong bộ nhớ, kích thước: {len(processed_video_data)} bytes")
+            logger.info(f"Đã xử lý xong video, kích thước: {len(processed_video_data)} bytes")
             
+            # Tạo thông tin phát hiện
             detection_info = {
                 "fire_detected": fire_detected,
                 "detections": detections,
-                "frames_processed": frame_idx,
-                "fps": fps,
-                "resolution": f"{width}x{height}"
+                "frames_processed": frame_count,
+                "max_confidence": max_confidence,
+                "max_confidence_time": max_confidence_time
             }
             
             return True, processed_video_data, detection_info
@@ -640,11 +740,20 @@ class FireDetectionService:
         except Exception as e:
             logger.error(f"Error processing video from memory: {str(e)}")
             logger.exception(e)
+            
+            # Xóa file tạm nếu có
+            if temp_output_path and os.path.exists(temp_output_path):
+                try:
+                    os.remove(temp_output_path)
+                except:
+                    pass
+                    
             return False, None, {}
             
     async def process_video_streaming_from_memory(self, video_data: bytes, websocket: WebSocket = None) -> Tuple[bool, bytes, Dict]:
         """
-        Xử lý video để phát hiện đám cháy và gửi frame đã xử lý qua WebSocket
+        Xử lý video để phát hiện đám cháy và gửi frame đã xử lý qua WebSocket,
+        sử dụng Cloudinary để xử lý video
         
         Args:
             video_data: Dữ liệu nhị phân của video
@@ -666,29 +775,71 @@ class FireDetectionService:
                 if model_loaded:
                     logger.info("Đã tải lại model YOLO thành công")
                 else:
-                    logger.warning("Không thể tải model YOLO, sẽ sử dụng phân tích màu sắc")
+                    logger.warning("Không thể tải model YOLO")
             
-            # Boặc phần còn lại của code
+            # Kiểm tra xem có URL cache mới nhất không
+            global last_cloudinary_url, last_cloudinary_result, global_cloudinary_cache
             
-            # Tạo file tạm thời để đọc video
-            temp_input_path = f"temp_input_{uuid.uuid4()}.mp4"
-            try:
-                with open(temp_input_path, 'wb') as f:
-                    f.write(video_data)
-                
-                cap = cv2.VideoCapture(temp_input_path)
-                if not cap.isOpened():
-                    logger.error(f"Không thể mở video từ file tạm: {temp_input_path}")
-                    if websocket:
-                        await websocket.send_json({"status": "error", "message": "Không thể mở video"})
-                    return False, None, {}
-                
-                # Ghi nhớ để xóa file tạm sau khi xử lý xong
-                is_temp_file_created = True
-            except Exception as e:
-                logger.error(f"Không thể tạo file tạm: {str(e)}")
+            if websocket:
+                await websocket.send_json({"status": "info", "message": "Đang chuẩn bị video..."})
+            
+            cloudinary_url = None
+            if last_cloudinary_url is not None:
+                logger.info(f"Sử dụng URL Cloudinary gần nhất: {last_cloudinary_url}")
+                cloudinary_url = last_cloudinary_url
                 if websocket:
-                    await websocket.send_json({"status": "error", "message": f"Lỗi: {str(e)}"})
+                    await websocket.send_json({"status": "info", "message": "Sử dụng video đã tải lên trước đó"})
+            else:
+                # Kiểm tra cache dựa trên hash của video
+                video_hash = hashlib.md5(video_data[:1024*1024]).hexdigest()
+                
+                if video_hash in global_cloudinary_cache:
+                    logger.info(f"Sử dụng URL Cloudinary từ cache cho hash {video_hash[:8]}")
+                    cloudinary_url = global_cloudinary_cache[video_hash]['url']
+                    last_cloudinary_url = cloudinary_url
+                    last_cloudinary_result = global_cloudinary_cache[video_hash]['result']
+                    if websocket:
+                        await websocket.send_json({"status": "info", "message": "Sử dụng video đã tải lên trước đó"})
+                else:
+                    # Tải video lên Cloudinary nếu chưa có trong cache
+                    upload_start_time = time.time()
+                    if websocket:
+                        await websocket.send_json({"status": "info", "message": "Đang tải video lên Cloudinary..."})
+                    
+                    logger.info(f"Đang tải video lên Cloudinary...")
+                    process_uuid = str(uuid.uuid4())
+                    success, message, result = upload_bytes_to_cloudinary(video_data, filename=f"fire_detection_{process_uuid}.mp4")
+                    
+                    if not success or not result:
+                        logger.error(f"Không thể tải video lên Cloudinary: {message}")
+                        if websocket:
+                            await websocket.send_json({"status": "error", "message": f"Không thể tải video lên Cloudinary: {message}"})
+                        return False, None, {}
+                    
+                    cloudinary_url = result.get('secure_url')
+                    logger.info(f"Đã tải video lên Cloudinary thành công: {cloudinary_url}")
+                    logger.info(f"Thời gian tải lên Cloudinary: {time.time() - upload_start_time:.2f} giây")
+                    
+                    # Lưu vào cache toàn cục
+                    global_cloudinary_cache[video_hash] = {
+                        'url': cloudinary_url,
+                        'result': result,
+                        'timestamp': time.time()
+                    }
+                    
+                    # Cập nhật lần tải lên gần nhất
+                    last_cloudinary_url = cloudinary_url
+                    last_cloudinary_result = result
+                    
+                    if websocket:
+                        await websocket.send_json({"status": "info", "message": "Video đã sẵn sàng để xử lý"})
+            
+            # Mở video từ URL Cloudinary
+            cap = cv2.VideoCapture(cloudinary_url)
+            if not cap.isOpened():
+                logger.error(f"Không thể mở video từ URL Cloudinary: {cloudinary_url}")
+                if websocket:
+                    await websocket.send_json({"status": "error", "message": "Không thể mở video từ Cloudinary"})
                 return False, None, {}
                 
             # Xử lý video với phát hiện đám cháy
@@ -736,9 +887,15 @@ class FireDetectionService:
                                 if int(det.cls[0].item()) == 0:  # Class 0 là lửa
                                     x1, y1, x2, y2 = det.xyxy[0].cpu().numpy().astype(int)
                                     conf = float(det.conf[0].item())
+                                    
+                                    # Cập nhật confidence
+                                    if conf > fire_conf:
+                                        fire_conf = conf
+                                    
                                     cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
                                     cv2.putText(frame, f"{conf:.2f}", (x1, y1 - 10),
                                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+                                    
                                     area = ((x2 - x1) * (y2 - y1)) / (width * height) * 100
                                     total_fire_area += area
                                     current_fire_detected = True
@@ -746,36 +903,6 @@ class FireDetectionService:
                             logger.error(f"Lỗi khi xử lý frame với YOLO: {str(e)}")
                             # Nếu lỗi với YOLO, sử dụng phương pháp dự phòng
                             current_fire_detected, confidence = self._detect_fire_in_frame(frame)
-                            
-                            if current_fire_detected:
-                                # Phân tích vùng màu lửa
-                                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-                                lower_red1 = np.array([0, 120, 70])
-                                upper_red1 = np.array([10, 255, 255])
-                                lower_red2 = np.array([170, 120, 70])
-                                upper_red2 = np.array([180, 255, 255])
-                                
-                                mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-                                mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-                                mask = cv2.bitwise_or(mask1, mask2)
-                                
-                                # Tìm contours của vùng lửa
-                                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                                
-                                # Vẽ contours lên frame
-                                for contour in contours:
-                                    # Lọc những contour quá nhỏ
-                                    if cv2.contourArea(contour) > 50:  # Ngưỡng diện tích
-                                        # Vẽ bounding box màu đỏ quanh vùng lửa
-                                        x, y, w, h = cv2.boundingRect(contour)
-                                        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                                        
-                                        area = (w * h) / (width * height) * 100
-                                        total_fire_area += area
-                    else:
-                        # Phương pháp dự phòng sử dụng phân tích màu sắc
-                        current_fire_detected, confidence = self._detect_fire_in_frame(frame)
-                        
                         if current_fire_detected:
                             # Phân tích vùng màu lửa
                             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -802,15 +929,15 @@ class FireDetectionService:
                                     area = (w * h) / (width * height) * 100
                                     total_fire_area += area
                     
-                    # Cập nhật trạng thái phát hiện lửa
-                    if current_fire_detected:
-                        fire_detected = True
-                        detections.append({
-                            "frame": frame_idx,
-                            "time": video_time,
-                            "confidence": round(float(0.8), 4),  # Giá trị mặc định
-                            "area": round(float(total_fire_area), 4)
-                        })
+                # Cập nhật trạng thái phát hiện lửa
+                if current_fire_detected:
+                    fire_detected = True
+                    detections.append({
+                        "frame": frame_idx,
+                        "time": video_time,
+                        "confidence": round(float(0.8), 4),  # Giá trị mặc định
+                        "area": round(float(total_fire_area), 4)
+                    })
                 
                 # Thêm timestamp và thông tin phát hiện
                 cv2.putText(frame, video_time_str, (10, 30), 
@@ -843,7 +970,7 @@ class FireDetectionService:
                         processed_frame_count += 1
                     except Exception as e:
                         logger.error(f"Lỗi khi gửi frame qua WebSocket: {str(e)}")
-                        break
+                        continue
                 
                 frame_idx += 1
             

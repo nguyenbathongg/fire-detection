@@ -23,14 +23,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Middleware CORS - Cấu hình cho phép frontend React truy cập
+# Middleware CORS - Cấu hình cho phép frontend React và WebSocket truy cập
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],  # Thêm frontend React origin
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "Accept"],
-    expose_headers=["Content-Length"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "*"],
+    expose_headers=["Content-Length", "*"],
     max_age=600,  # 10 phút cache cho preflight requests
 )
 

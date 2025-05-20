@@ -24,6 +24,7 @@ CREATE TABLE videos (
     processed_video_url VARCHAR(255),
     video_type video_type_enum NOT NULL,
     youtube_url VARCHAR(255),
+    file_name VARCHAR(255),
     status status_enum NOT NULL DEFAULT 'pending',
     fire_detected BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

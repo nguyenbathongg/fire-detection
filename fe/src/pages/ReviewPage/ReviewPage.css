@@ -1,0 +1,126 @@
+.review-page {
+  max-width: 70%;
+  margin: 1% 15% 2.2% 15%;
+}
+
+.video-review-frame {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border: 10px solid #C4D9FF;
+   /* border: 10px solid #FF9965; */
+  max-height: 65vh;
+  background-color: #000000;
+  
+}
+
+.custom-control {
+  width: 100%;
+  background-color: #E0F7FA;
+  display: flex !important;
+  flex-direction: row;
+  /* justify-content: space-between; */
+  text-align: center;
+  padding: 0rem 0.5rem;
+  align-items: center !important;
+  position: relative !important;
+}
+
+.css-75o2in-MuiSlider-root {
+  padding: 0.5rem 0rem !important;
+}
+
+.custom-controls {
+  width: 100%;
+  background-color: #E0F7FA;
+  border-bottom-right-radius: 10px;
+  border-bottom-left-radius: 10px;
+  display: flex !important;
+  flex-direction: row;
+  /* justify-content: space-between; */
+  text-align: center;
+  padding: 0.25rem 0rem;
+  align-items: center !important;
+  position: relative !important;
+ 
+} 
+
+.control-button,
+.custom-controls button {
+  background: none !important;
+  border: none;
+  font-size: 1.5rem !important;
+  color: #003366;
+  cursor: pointer;
+  /* flex: 1;  */
+  text-align: center; 
+}
+
+/* .left-control {
+  display: flex;
+  align-items: center; 
+  gap: 0.8rem;
+}
+
+.center-button {
+  display: flex; 
+  justify-content: center; 
+  margin-left: 27%;
+  gap: 0.8rem;
+}
+
+.right-control {
+  margin-left: auto;
+  margin-right: 0rem;
+} */
+
+.left-control,
+.right-control {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  z-index: 1; 
+}
+
+.left-control {
+  flex-shrink: 0;
+}
+
+.right-control {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.center-button {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  z-index: 0; 
+}
+
+.control-time {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #003366;
+}
+
+
+.review-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: -1%;
+  margin-left: 2%;
+}
+
+
+.review-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+   font-family: Montserrat;
+}
+

@@ -1,6 +1,6 @@
 # Hệ thống Phát hiện Đám Cháy từ Video
 
-Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytics) và FastAPI. Ứng dụng này tự động phát hiện đám cháy từ video được tải lên hoặc video YouTube, với kết quả xử lý lưu trữ trên Cloudinary. Giao diện người dùng được xây dựng bằng React.
+Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytics) và FastAPI cho back-end, React cho front-end. Ứng dụng này tự động phát hiện đám cháy từ video được tải lên hoặc video YouTube, với kết quả xử lý lưu trữ trên Cloudinary.
 
 ## Tính năng
 
@@ -10,17 +10,18 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytic
 - Xử lý video và đánh dấu vùng đám cháy
 - Streaming kết quả xử lý theo thời gian thực 
 - Lưu trữ video trên Cloudinary (không lưu cục bộ)
+- Giao diện người dùng thân thiện với React, Material-UI và Ant Design
 - API RESTful đầy đủ
 
 ## Yêu cầu hệ thống
 
 - Python 3.8 hoặc cao hơn
-- Node.js 14+ và npm (cho frontend)
+- Node.js 14+ và npm
 - PostgreSQL
 - Tài khoản Cloudinary
 - Torch/PyTorch (hỗ trợ CUDA nếu có GPU)
 
-## Cài đặt
+## Cài đặt Back-end
 
 1. Clone repository:
    ```
@@ -30,75 +31,113 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytic
 
 2. Tạo môi trường ảo và cài đặt dependencies:
    ```
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
+   python -m venv .venv
+   # Kích hoạt môi trường ảo
+   .venv\Scripts\activate  # Windows
    # hoặc
-   venv\Scripts\activate  # Windows
+   source .venv/bin/activate  # Linux/Mac
+   
+   # Cài đặt các thư viện
+   cd be
    pip install -r requirements.txt
    ```
 
 3. Tạo file `.env` từ file mẫu `.env.example`:
    ```
-   cp .env.example .env  # Linux/Mac
-   # hoặc
    copy .env.example .env  # Windows
+   # hoặc
+   cp .env.example .env  # Linux/Mac
    ```
 
 4. Cập nhật thông tin trong file `.env`:
    - Thông tin database PostgreSQL
    - Thông tin Cloudinary API
    - Secret key cho JWT
+   - Cấu hình cho SMTP thông báo
 
 5. Tải model YOLOv11 và đặt vào thư mục `model/`: 
-   - Model YOLO đã train phát hiện đám cháy (tên file `bestyolov11-25k.pt`)
+   - Model YOLO đã train phát hiện đám cháy (tên file `bestyolov11-27k.pt`)
    - Hoặc cập nhật tham số MODEL_PATH trong file .env
 
 6. Chạy migration để tạo cấu trúc database:
    ```
    alembic upgrade head
    ```
-7. Chạy backend
+
+7. Khởi động back-end:
    ```
    uvicorn app.main:app --reload
    ```
+   Mặc định back-end sẽ chạy tại: http://localhost:8000
 
+## Cài đặt Front-end
 
-## Cấu trúc thư mục
+1. Di chuyển vào thư mục front-end:
+   ```
+   cd fe
+   ```
+
+2. Cài đặt các dependencies:
+   ```
+   npm install
+   ```
+
+3. Khởi động front-end:
+   ```
+   npm start
+   ```
+   Mặc định front-end sẽ chạy tại: http://localhost:3000
+
+## Sử dụng
+
+1. Mở trình duyệt và truy cập vào http://localhost:3000
+2. Đăng ký tài khoản mới hoặc đăng nhập với tài khoản có sẵn
+3. Sử dụng các tính năng từ menu điều hướng:
+   - Tải video lên để phân tích
+   - Xem kết quả phát hiện đám cháy
+   - Quản lý tài khoản cá nhân
+
+## Cấu trúc dự án
 
 ```
 fire-detection/
-├─ app/                    # Mã nguồn backend (FastAPI)
-│   ├─ api/                # API endpoints 
-│   ├─ core/               # Cấu hình
-│   ├─ db/                 # Kết nối database
-│   ├─ models/             # Mô hình dữ liệu
-│   ├─ schemas/            # Pydantic schemas
-│   ├─ services/           # Business logic
-│   └─ utils/              # Tiện ích
-├─ migrations/             # Alembic migrations
-├─ model/                  # Model YOLOv11
-├─ .env                    # Biến môi trường
-├─ .env.example           # Mẫu cấu hình biến môi trường
-├─ .gitignore             # Danh sách file bỏ qua khi đẩy lên Git
-└─ requirements.txt        # Packages cho backend
-Mở trình duyệt và truy cập: http://localhost:8000
+├─ be/                     # Back-end
+│   ├─ app/                # Mã nguồn FastAPI
+│   │   ├─ api/            # API endpoints 
+│   │   ├─ core/           # Cấu hình
+│   │   ├─ db/             # Kết nối database
+│   │   ├─ models/         # Mô hình dữ liệu
+│   │   ├─ schemas/        # Pydantic schemas
+│   │   ├─ services/       # Business logic
+│   │   └─ utils/          # Tiện ích
+│   ├─ migrations/         # Alembic migrations
+│   ├─ model/              # Model YOLOv11
+│   ├─ .env                # Biến môi trường
+│   └─ requirements.txt    # Packages cho backend
+├─ fe/                     # Front-end
+│   ├─ public/             # Tài nguyên tĩnh
+│   ├─ src/                # Mã nguồn React
+│   └─ package.json        # Packages cho frontend
+└─ README.md               # Tài liệu dự án
+```
 
-## Sử dụng API
+## API Endpoints
 
-### Streaming Video Processing
+### Authentication
+- `POST /api/v1/auth/register`: Đăng ký tài khoản mới
+- `POST /api/v1/auth/login`: Đăng nhập
 
-1. Tải lên video qua API POST `/api/v1/videos`
-2. Lấy ID video từ phản hồi
-3. Mở trang `http://localhost:8000
-4. 
-5. Xem quá trình xử lý và kết quả phát hiện đám cháy theo thời gian thực
-
-### API Endpoints
-
+### Video Processing
 - `POST /api/v1/videos`: Tải lên video mới
 - `GET /api/v1/videos`: Lấy danh sách video của người dùng
 - `GET /api/v1/videos/{video_id}`: Xem chi tiết video
 - `DELETE /api/v1/videos/{video_id}`: Xóa video
+- `GET /api/v1/videos/{video_id}/status`: Kiểm tra trạng thái xử lý
+- `GET /api/v1/videos/{video_id}/result`: Lấy kết quả phát hiện
+
+### WebSocket
+- `WS /ws/videos/{video_id}`: Stream kết quả xử lý video
+
 
 ## Lưu trữ media
 

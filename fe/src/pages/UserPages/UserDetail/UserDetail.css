@@ -1,0 +1,17 @@
+.user-header {
+    display: flex;
+  align-items: center;
+  font-family: Montserrat;
+    font-weight: 700;
+    font-size: 1.2rem;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    color: #474F7A;
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-btn-color-link.ant-btn-variant-link {
+  color: #000000 !important;
+   font-family: Montserrat;
+    font-size: 0.875rem;
+}

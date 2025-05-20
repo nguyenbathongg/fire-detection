@@ -1,0 +1,55 @@
+.history-container {
+  max-width: 90%;
+  margin: 0 auto;
+  padding: 0rem 1.5rem 1.5rem 1.5rem;
+}
+
+.user-history-header {
+  text-align: center;
+  display: flex;
+  margin-bottom: 0.5rem;
+}
+
+.history-card :where(.css-dev-only-do-not-override-18afz5u).ant-card .ant-card-body {
+  width: 100%;
+  border: 1px solid #b7eb8f !important;
+  background-color: #f6ffed !important;
+  transition: box-shadow 0.3s ease;
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-card .ant-card-body {
+    padding: 0.5rem 1rem;
+
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-list .ant-list-item  {
+    padding: 0.5rem 0rem;
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-card-bordered {
+    border: none;
+}
+.history-card:hover :where(.css-dev-only-do-not-override-18afz5u).ant-card .ant-card-body{
+  box-shadow: 0 4px 12px rgba(82, 196, 26, 0.2);
+}
+
+.history-text-line {
+  margin-top: 8px;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.watch-video-link {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #389e0d;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.watch-video-link:hover {
+  text-decoration: underline;
+}
+

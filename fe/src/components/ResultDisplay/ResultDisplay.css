@@ -1,0 +1,305 @@
+.result-page {
+  /* background-color: #B9FFDE; */
+  /* padding: 0.5rem; */
+  max-width: 76%;
+  margin: 1% 12% 1% 12%;
+  height: 100vh;
+  
+}
+
+.video-result-frame {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border: 10px solid #C4D9FF;
+   /* border: 10px solid #FF9965; */
+  height: 65vh;
+  background-color: #000000;
+  
+}
+
+.video-player {
+  width: 76%;
+  object-fit: fill;
+
+  
+}
+
+.camera-result-video {
+  width: 100%;
+  object-fit: fill;
+  background-color: #000000;
+}
+
+ .stats-bar {
+    /* background: #a6c8e0; */
+    background-color: #70A6D2;
+    padding: 0.5rem;
+    border-bottom-right-radius: 10px;
+    border-bottom-left-radius: 10px;
+    color: #fff;
+    display: flex;
+    justify-content: space-between; 
+}
+
+.left-column {
+  flex: 1; 
+  margin-right: 2rem; 
+}
+
+.right-column {
+  flex: 0 0 37%; 
+  display: flex;
+  flex-direction: column; 
+  justify-content: space-between; 
+  
+}
+
+.progress-text {
+    font-family: Montserrat;
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    color: #FFFFFF;
+    margin-bottom: 0.625rem; 
+
+}
+
+.progress-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center; 
+  border-radius: 5px;
+  height: 0.625rem; 
+  position: relative;
+  margin: 0.625rem 0rem 0.625rem 0rem; 
+  padding-right: 0.5rem;
+}
+
+.progress-bar-wrapper {
+  flex: 1;
+  background-color: #D9D9D9;
+  height: 100%; 
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-fire {
+  background-color: red;
+  height: 100%; 
+  border-radius: 5px; 
+}
+
+.progress-bg {
+  background-color: #00ff00; 
+  height: 100%; 
+  border-radius: 5px; 
+  
+}
+
+.progress-percent {
+    font-family: Montserrat;
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    color: #FFFFFF;
+    margin-bottom: 0.625rem; 
+    text-align: right;
+    width: 2%;
+}
+
+
+.detection-time {
+    font-family: Montserrat;
+    display: flex;
+    justify-content: flex-end;
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    color: #FFFFFF;
+    margin-bottom: 0.625rem; 
+}
+
+.new-button {
+  background-color: #5AB2FF; 
+  color: #ffffff; 
+  padding: 0.75rem 0.75rem; 
+  border: none; 
+  border-radius: 5px; 
+  cursor: pointer; 
+  transition: background-color 0.3s; 
+  align-self: flex-end;
+  font-family: Montserrat;
+    font-weight: 510;
+    font-size: 0.85rem;
+    line-height: 100%;
+    text-align: center;
+    vertical-align: middle;
+
+}
+
+.new-button:hover, .new-review-button {
+  background-color: #0073e6; 
+}
+
+.new-review-button {
+  background-color: #5AB2FF; 
+  color: #ffffff; 
+  padding: 0.5rem 0.5rem; 
+  border: none; 
+  border-radius: 5px; 
+  cursor: pointer; 
+  transition: background-color 0.3s; 
+  justify-content: center;
+  font-family: Montserrat;
+    font-weight: 510;
+    font-size: 0.85rem;
+    text-align: center;
+  margin-top: 1rem;
+  display: block; 
+   margin: 1rem auto;
+}
+
+
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  flex-direction: column;
+  font-family: Montserrat;
+  font-weight: 600;
+  font-size: 1rem;
+  color: white;
+}
+
+.review-button {
+  font-family: Montserrat;
+  font-weight: 600;
+  font-size: 0.74rem;
+  padding: 0.4rem 0.5rem;
+  background-color: #5CB338;
+  color: white;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.2s ease;
+}
+
+.review-button:hover {
+  background-color: #88C273;
+}
+
+.custom-control-progress {
+  width: 100%;
+   background-color: #E0F7FA;
+   height: 0.5rem;
+  display: flex !important;
+  flex-direction: row;
+  /* justify-content: space-between; */
+  text-align: center;
+  padding: 0rem 0.5rem ;
+  align-items: center !important;
+  position: relative !important;
+}
+
+
+
+.progress-fill {
+  width: 99.9%;
+  height: 60%;
+  background-color: #F14E4E;
+  /* border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px; */
+  border-radius: 4px;
+}
+
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -60%);
+  width: 0.7rem;
+  margin-right: 0.6rem;
+  height: 0.7rem;
+  background-color: #F14E4E;
+  border: 1px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+  animation: pulse 1.5s infinite;
+  cursor: default;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(0, 0, 0, 0.8);
+  }
+}
+
+
+.turnoff-button {
+  display: flex;
+  flex-direction: row;
+  gap: 10%;
+  justify-content: flex-end;
+}
+
+.time-display {
+  color: white;
+  font-size: 0.8rem;
+  margin-top: 0.05rem;
+  text-align: center;
+}
+
+.loading-placeholder {
+  width: 100%;
+  height: 60vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #ffffff;
+  font-size: 0.5rem;
+  font-weight: 600;
+  gap: 10px;
+  background-color: #000000;
+}
+
+.loading-placeholders {
+   align-items: center;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background-color: #000000;
+}
+
+/* Spinner */
+.spinner {
+  border: 6px solid #f3f3f3; 
+  border-top: 6px solid #3498db; 
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+/* Animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

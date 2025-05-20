@@ -1,0 +1,238 @@
+.manage-container {
+  font-family: "Montserrat", sans-serif;
+  padding: 1rem 3.7rem;
+  min-height: 100vh;
+}
+
+.model-info {
+  background-color: #B9FFDE;
+  padding: 1rem 3rem;
+  border-radius: 20px;
+  text-align: center;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.model-title {
+    font-family: Montserrat;
+    margin-bottom: 0.5rem;
+    color: #00224D;
+    font-weight: 600;
+    font-size: 1.15rem;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    margin-top: 0rem;
+
+}
+
+.model-name {
+    font-family: Montserrat;
+    font-weight: 600;
+    font-size: 1.05rem;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    color: #00224D;
+}
+
+.highlight {
+  color: red;
+}
+
+.model-metrics {
+    background-color: #FFFFFF;
+  display: flex;
+  /* justify-content: center;
+  gap: 2rem; */
+  width: 100%;
+  justify-content: space-between;
+  margin-top: 0.75rem auto;
+  font-family: Montserrat;
+    font-weight: 400;
+    font-size: 0.9rem;
+}
+
+.history-section {
+  background-color: #B9FFDE;
+  padding: 0.03rem 1.5rem;
+  border-radius: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.history-title {
+  text-align: center;
+  /* margin-bottom: 0.6rem; */
+  font-family: Montserrat;
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    color: #00224D;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  padding-bottom: 1.2rem;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th {
+  /* background-color: #e6f7ef !important; */
+   background-color: #e6f7ef !important;
+}
+
+.ant-table th,
+.ant-table td {
+  font-family: "Montserrat", sans-serif;
+}
+.ant-table th {
+    color: #4D4B7E !important;
+    font-family: Montserrat;
+    font-weight: 700;
+    font-size: 0.9rem !important;
+    line-height: 100%;
+    letter-spacing: 0%;
+    vertical-align: middle;
+    padding-top: 0.4rem !important;
+     padding-bottom: 0.4rem !important;
+
+;
+}
+
+.ant-table td {
+  font-size: 0.875rem !important;
+     padding-top: 0.25rem !important;
+     padding-bottom: 0.25rem !important;
+     
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-pagination .ant-pagination-item-active {
+  font-size: 0.65rem !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid #90c67c !important;
+  font-family: Montserrat !important;
+  color: #ffffff !important;
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-pagination .ant-pagination-item {
+  font-size: 0.65rem !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid #90c67c !important;
+  font-family: Montserrat !important;
+  color: #ffffff !important;
+  
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-pagination .ant-pagination-total-text,
+:where(.css-dev-only-do-not-override-18afz5u).ant-select-single:not(.ant-select-customize-input) .ant-select-selector,
+:where(.css-dev-only-do-not-override-18afz5u).ant-pagination .ant-pagination-options-quick-jumper  {
+  font-size: 0.65rem !important;
+     font-family: Montserrat;
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-pagination .ant-pagination-item-active a  {
+  color: #4D4B7E !important;
+   font-family: Montserrat;
+}
+
+/* Ngăn xuống dòng và cho phép cuộn ngang */
+/* .ant-table-pagination {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+} */
+
+
+
+
+
+.video-cell {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.video-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px; /* tùy chỉnh độ dài tên */
+}
+
+.custom-download-icon {
+  color: #4D4B7E !important;
+}
+.download-icon-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: #6b5ca4;
+  display: flex;
+  align-items: center;
+}
+
+.download-icon-button:hover {
+  opacity: 0.8;
+}
+
+
+/* 
+.download-icon {
+  cursor: pointer;
+  color: #3c3c3c;
+  transition: transform 0.2s;
+}
+
+.download-icon:hover {
+  transform: scale(1.2);
+  color: #0077cc;
+}
+
+.download-button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  background-color: #66d2ff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.download-button:hover {
+  background-color: #4cb6e6;
+}
+
+.download-icon {
+  color: white;
+}
+ 
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.history-table th,
+.history-table td {
+  padding: 12px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+  font-size: 14px;
+}
+
+.history-table thead {
+  background-color: #e6f7ef;
+  color: #053c36;
+  font-weight: bold;
+}
+*/
+

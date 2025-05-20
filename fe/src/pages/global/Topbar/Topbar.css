@@ -1,0 +1,90 @@
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 6.5vh;
+    background-color: #328F6F;
+    padding: 0.25rem 0rem;
+    border-bottom: 1px solid #e0e0e0;
+    }
+
+.topbar-left {
+  width: 20%;
+  display: flex;
+  justify-content: center;   
+  align-items: center;       
+  gap: 0rem !important;
+  flex-shrink: 0;
+  position: relative;
+}
+
+    .topbar-logo {
+    font-size: 1.25rem;
+    color: #ff4d4f;
+    }
+    .topbar-logo {
+        color: #FF9965;
+        font-size: 2.2rem;
+    }
+
+    .topbar-title {
+        font-family: Montserrat, sans-serif;
+        font-weight: 700;
+        font-size: 1rem;
+        line-height: 100%;
+        letter-spacing: 0%;
+        text-align: left;
+        vertical-align: middle;
+        color: #FFFFFF;
+        /* width: 100%;
+        display: inline; */
+    }
+    .topbar-right {
+    display: flex;
+    align-items: center;
+    margin-left: auto; 
+    gap: 0.5rem;
+    }
+    .topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    /* color: #333; */
+    font-weight: 500;
+
+    }
+
+    .topbar-user-logo {
+        font-size: 2rem;
+    }
+
+    .topbar-username-container {
+         display: flex; 
+        background-color: #FFFFFF; 
+        border-radius: 10px; 
+        padding: 0.5rem 0.5rem; 
+        font-weight: 500; 
+        align-items: center;
+        justify-content: center;
+    }
+    
+    
+    .topbar-username {
+        font-family: Montserrat;
+        font-weight: 400;
+        font-size: 0.8rem;
+        line-height: 100%;   
+         align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .topbar-logout {
+        margin-right: 0.5rem;
+    }
+
+    :where(.css-dev-only-do-not-override-18afz5u).ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-title-content,
+    :where(.css-dev-only-do-not-override-18afz5u).ant-btn-variant-outlined {
+         font-family: Montserrat;
+    }
+
+    

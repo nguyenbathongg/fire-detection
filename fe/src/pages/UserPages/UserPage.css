@@ -1,0 +1,68 @@
+
+.users-page {
+  padding: 0rem 8%;
+}
+
+
+.header {
+  display: flex;
+  /* justify-content: center; */
+  align-items: center;
+  /* margin-bottom: 1.25rem; */
+  height: 8vh;
+  font-family: Montserrat;
+}
+
+.header h2 {
+  margin-left: 0rem;
+  margin-right: auto;
+  font-size: 1.5rem;
+}
+
+.add-user-button {
+  margin-left: auto;
+  margin-bottom: 0rem;
+  font-size: 0.9rem;
+  font-family: Montserrat;
+
+}
+
+.users-table {
+  margin-top: 1rem;
+}
+
+.user-modal {
+  max-width: 70%;
+  width: 100%;
+}
+
+.ant-popconfirm-button {
+ align-items: center;
+}
+
+.users-table .ant-table-thead > tr > th,
+.users-table .ant-table-tbody > tr > td {
+  border: 1px solid #ddd;
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #328F6F !important;
+   font-size: 1rem !important;
+  font-family: Montserrat !important;
+  font-weight: 600;
+  border: #328F6F;
+
+  
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-tabs .ant-tabs-tab.ant-tabs-tab .ant-tabs-tab-btn {
+  color: #000000;
+   font-size: 0.9rem !important;
+  font-family: Montserrat !important;
+  font-weight: 600;
+
+  
+}
+:where(.css-dev-only-do-not-override-18afz5u).ant-tabs .ant-tabs-ink-bar {
+  background-color: #328F6F !important;
+}

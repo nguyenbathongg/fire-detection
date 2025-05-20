@@ -1,0 +1,50 @@
+.modal-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #67AF6F;
+  text-align: left;
+  margin-bottom: 1.25rem;
+}
+
+.ant-form ant-form-vertical,
+.ant-form-item-label > label ,.ant-input  {
+  font-family: "Montserrat", sans-serif !important;
+}
+
+
+
+.ant-btn-primary {
+  background-color: #67AF6F !important;
+  border-color: #67AF6F !important;
+   font-family: "Montserrat", sans-serif !important;
+}
+
+ .ant-btn-primary .ant-btn-primary:active,
+.ant-btn-primary:focus {
+  background-color: #67AF6F !important;
+  border-color: #67AF6F !important;
+  box-shadow: none;
+}
+
+.ant-btn-primary:active:hover {
+  background-color: #67AF6F !important;
+  border-color: #67AF6F !important;
+}
+
+.save {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.save .ant-btn-primary {
+  width: 80%;
+  height: 2.5rem;
+  font-weight: 700;
+  border-radius: 20px;
+  font-family: "Montserrat", sans-serif !important;
+}
+
+
+

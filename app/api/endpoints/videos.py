@@ -259,7 +259,7 @@ async def create_video(
     elif youtube_url:
         video_type_enum = VideoTypeEnum.YOUTUBE
         # Tải video từ YouTube và upload lên Cloudinary
-        success, message, video_url, cloudinary_public_id = download_youtube_video(youtube_url)
+        success, message, video_url, cloudinary_public_id, youtube_title = download_youtube_video(youtube_url)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -273,14 +273,30 @@ async def create_video(
     
     # Tạo bản ghi video
     video_id = uuid.uuid4()
+    
+    # Xác định file_name
+    if file and file.filename:
+        file_name = file.filename
+    elif youtube_url:
+        # Sử dụng tiêu đề YouTube nếu có
+        if 'youtube_title' in locals() and youtube_title:
+            file_name = youtube_title
+        else:
+            # Sử dụng youtube_url như là một phần của tên file nếu không có tiêu đề
+            video_id_part = youtube_url.split('v=')[-1] if 'v=' in youtube_url else youtube_url.split('/')[-1]
+            file_name = f"youtube_{video_id_part}"
+    else:
+        file_name = None
+    
     video = Video(
         video_id=video_id,
         user_id=current_user.user_id,
-        original_video_url=video_url,
         video_type=video_type_enum,
         youtube_url=youtube_url if video_type_enum == VideoTypeEnum.YOUTUBE else None,
+        original_video_url=video_url,
         status=StatusEnum.PENDING,
         fire_detected=False,
+        file_name=file_name,
         cloudinary_public_id=cloudinary_public_id
     )
     db.add(video)

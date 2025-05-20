@@ -20,6 +20,7 @@ class Video(Base):
     processed_video_url = Column(String(255), nullable=True)
     status = Column(String(10), nullable=False, default="pending")
     fire_detected = Column(Boolean, nullable=False, default=False)
+    file_name = Column(String(255), nullable=True)  # Tên file video gốc hoặc tiêu đề YouTube
     cloudinary_public_id = Column(String(255), nullable=True)  # ID công khai của video gốc trên Cloudinary
     cloudinary_processed_id = Column(String(255), nullable=True)  # ID công khai của video đã xử lý trên Cloudinary
     created_at = Column(DateTime, default=datetime.utcnow)

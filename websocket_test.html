@@ -385,10 +385,14 @@
             resetUI();
             socket = connectWebSocket();
             
-            // Khi kết nối mở, chỉ gửi loại
+            // Khi kết nối mở, gửi loại và tên file
             socket.addEventListener('open', function() {
-                addLog('Kết nối mở, gửi loại upload');
-                socket.send(JSON.stringify({ type: 'upload' }));
+                addLog('Kết nối mở, gửi loại upload và tên file');
+                socket.send(JSON.stringify({ 
+                    type: 'upload',
+                    fileName: videoFile.name  // Thêm tên file vào thông điệp
+                }));
+                addLog(`Tên file gửi đi: ${videoFile.name}`);
             });
             
             // Chỉ gửi dữ liệu binary khi server đã sẵn sàng

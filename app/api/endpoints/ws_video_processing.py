@@ -7,7 +7,7 @@ import time
 import logging
 import tempfile
 import asyncio
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Tuple
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, UploadFile, File, Form, HTTPException, Depends
 from starlette.websockets import WebSocketState
 from pydantic import BaseModel
@@ -47,6 +47,9 @@ async def process_direct_video_websocket(websocket: WebSocket):
     # Khởi tạo các biến cần thiết
     user = None
     db = next(get_db())
+    # Khởi tạo biến lưu tên file và loại video
+    original_file_name = None 
+    video_type_enum = None
     
     try:
         # Xử lý token nếu có (tùy chọn)
@@ -125,6 +128,9 @@ async def process_direct_video_websocket(websocket: WebSocket):
             file_size = data.get("fileSize", 0)
             file_name = data.get("fileName", "uploaded_video.mp4")
             mime_type = data.get("mimeType", "video/mp4")
+            
+            # Lưu thông tin file name vào log để debug
+            logger.info(f"Chế độ chunk: Nhận tên file: {file_name}")
             
             # Kiểm tra thông tin hợp lệ
             if total_chunks <= 0 or file_size <= 0:
@@ -254,10 +260,25 @@ async def process_direct_video_websocket(websocket: WebSocket):
         
         # Xử lý upload thông thường
         elif video_type == "upload":
+            # Lấy thông tin tên file nếu có
+            original_file_name = data.get("fileName", None)
+            video_type_enum = VideoTypeEnum.UPLOAD
+            
+            # Ghi log chi tiết về tên file
+            if original_file_name:
+                logger.info(f"Chế độ upload: Nhận tên file: '{original_file_name}'")
+            else:
+                logger.warning("Chế độ upload: Không nhận được tên file từ client")
+                logger.debug(f"Dữ liệu từ client: {data}")
+            
             # Thông báo cho client sẵn sàng nhận dữ liệu
             try:
                 logger.info("Gửi thông báo sẵn sàng nhận dữ liệu video")
-                await websocket.send_json({"status": "ready", "message": "Sẵn sàng nhận dữ liệu video..."})
+                await websocket.send_json({
+                    "status": "ready", 
+                    "message": "Sẵn sàng nhận dữ liệu video...",
+                    "fileNameConfirmed": original_file_name  # Xác nhận lại tên file với client
+                })
             except Exception as e:
                 logger.error(f"Lỗi khi gửi thông báo sẵn sàng: {str(e)}")
                 return
@@ -289,6 +310,8 @@ async def process_direct_video_websocket(websocket: WebSocket):
                     raise ValueError("Dữ liệu video trống, không thể xử lý")
                 
                 video_data = binary_data
+                # Trong trường hợp upload, youtube_title luôn là None
+                youtube_title = None
                 logger.info(f"Nhận thành công {len(video_data)/1024/1024:.2f} MB dữ liệu")
                 
                 # Gửi thông báo nhận thành công
@@ -302,18 +325,18 @@ async def process_direct_video_websocket(websocket: WebSocket):
                 except Exception as notify_e:
                     logger.warning(f"Không thể gửi thông báo nhận thành công: {str(notify_e)}")
             except WebSocketDisconnect as wd:
-                logger.info(f"Client ngắt kết nối khi đang gửi dữ liệu: {str(wd)}")
+                logger.info("Client ngắt kết nối khi đang nhận dữ liệu upload")
                 return
             except Exception as e:
-                logger.error(f"Lỗi khi nhận dữ liệu video: {type(e).__name__}, {str(e)}")
+                logger.error(f"Lỗi khi nhận dữ liệu upload: {str(e)}")
                 try:
-                    await websocket.send_json({"status": "error", "message": f"Lỗi khi nhận dữ liệu: {str(e)}"})
+                    await websocket.send_json({"status": "error", "message": f"Lỗi khi nhận dữ liệu upload: {str(e)}"})
                     await websocket.close()
                 except:
                     pass
                 return
-            
-        # Xử lý tải xuống video từ YouTube
+                
+        # Xử lý video từ YouTube URL
         elif video_type == "youtube":
             youtube_url = data.get("youtube_url")
             if not youtube_url:
@@ -323,7 +346,7 @@ async def process_direct_video_websocket(websocket: WebSocket):
                 except:
                     pass
                 return
-            
+                
             try:
                 await websocket.send_json({"status": "info", "message": "Đang tải video từ YouTube..."})
             except:
@@ -332,9 +355,11 @@ async def process_direct_video_websocket(websocket: WebSocket):
             
             # Tải video từ YouTube
             try:
-                # Sử dụng hàm đa luồng để tải video từ YouTube
-                video_data = await download_youtube_video(youtube_url, websocket)
+                # Sử dụng hàm đa luồng để tải video từ YouTube và lấy tiêu đề
+                video_data, youtube_title = await download_youtube_video(youtube_url, websocket)
                 logger.info(f"Tải video YouTube thành công, kích thước: {len(video_data)/1024/1024:.2f} MB")
+                if youtube_title:
+                    logger.info(f"Tiêu đề video YouTube: {youtube_title}")
             except WebSocketDisconnect:
                 logger.info("Client ngắt kết nối khi đang tải YouTube")
                 return
@@ -587,20 +612,68 @@ async def process_direct_video_websocket(websocket: WebSocket):
                             video_type_enum = VideoTypeEnum.UPLOAD
                             youtube_url_value = None
                         
-                        # Tạo bản ghi video
-                        video = Video(
+                        # Xác định file_name dựa vào loại video
+                        if video_type_enum == VideoTypeEnum.UPLOAD:
+                            # Tạo biến tạm để lưu giá trị tên file
+                            saved_file_name = None
+                            
+                            # FIXME: Bắt buộc sử dụng giá trị original_file_name để sửa lỗi
+                            if original_file_name:
+                                saved_file_name = original_file_name
+                                logger.info(f"Sử dụng tên file gốc được cung cấp bởi client: '{saved_file_name}'")
+                            else:
+                                # Chỉ sử dụng tên mặc định khi hoàn toàn không có tên file từ client
+                                saved_file_name = f"uploaded_video_{video_id}.mp4"
+                                logger.warning(f"Không có tên file gốc, sử dụng tên mặc định: '{saved_file_name}'")
+                            
+                            # Ánh xạ rõ ràng
+                            file_name = saved_file_name
+                            
+                            # Log thêm để khẳng định giá trị cuối cùng
+                            logger.info(f"Tên file cuối cùng sẽ được lưu vào cơ sở dữ liệu: '{file_name}'")
+                        
+                        
+                        elif video_type_enum == VideoTypeEnum.YOUTUBE and youtube_url_value:
+                            # Sử dụng tiêu đề YouTube nếu có
+                            if 'youtube_title' in locals() and youtube_title:
+                                file_name = youtube_title
+                                logger.info(f"Sử dụng tiêu đề YouTube: {file_name}")
+                            else:
+                                # Nếu không có tiêu đề, sử dụng ID video
+                                video_id_part = youtube_url_value.split('v=')[-1] if 'v=' in youtube_url_value else youtube_url_value.split('/')[-1]
+                                file_name = f"youtube_{video_id_part}"
+                                logger.info(f"Sử dụng YouTube ID: {file_name}")
+                        else:
+                            file_name = f"video_{video_id}.mp4"
+                            logger.info(f"Sử dụng tên mặc định: {file_name}")
+                        
+                        # Đảm bảo tên file không rỗng trước khi lưu vào database
+                        if not file_name and original_file_name:
+                            file_name = original_file_name
+                            logger.warning(f"Khôi phục tên file từ original_file_name='{original_file_name}'")
+                        
+                        # Kiểm tra cuối cùng, nếu vẫn không có tên file thì dùng mặc định
+                        if not file_name:                        
+                            file_name = f"uploaded_video_{video_id}.mp4"
+                            logger.warning(f"Vẫn không có tên file, dùng mặc định cuối cùng: '{file_name}'")
+                        
+                        # Tạo video trong cơ sở dữ liệu
+                        logger.info(f"Tạo video với file_name='{file_name}', user_id={user.user_id}, video_type={video_type_enum}")
+                        
+                        new_video = Video(
                             video_id=video_id,
-                            user_id=user.user_id,
-                            original_video_url=cloudinary_url,  # URL video gốc được tải lên
-                            processed_video_url=processed_url,  # URL video đã xử lý
+                            user_id=user.user_id if user else None,
                             video_type=video_type_enum,
                             youtube_url=youtube_url_value,
+                            original_video_url=cloudinary_url,
+                            processed_video_url=processed_url,
                             status=StatusEnum.COMPLETED,
                             fire_detected=fire_detected,
-                            cloudinary_public_id=cloudinary_public_id,  # ID video gốc
+                            file_name=file_name,
+                            cloudinary_public_id=cloudinary_public_id,
                             cloudinary_processed_id=cloudinary_processed_id  # ID video đã xử lý
                         )
-                        db.add(video)
+                        db.add(new_video)
                         
                         # Thêm lịch sử hoạt động của người dùng
                         user_history = UserHistory(
@@ -739,16 +812,16 @@ async def process_direct_video_websocket(websocket: WebSocket):
             pass
 
 
-async def download_youtube_video(youtube_url: str, websocket: Optional[WebSocket] = None) -> bytes:
+async def download_youtube_video(youtube_url: str, websocket: Optional[WebSocket] = None) -> Tuple[bytes, Optional[str]]:
     """
-    Tải video từ YouTube URL
+    Tải video từ YouTube URL và lấy tiêu đề video
     
     Args:
         youtube_url: URL YouTube
         websocket: WebSocket để thông báo tiến độ (nếu có)
         
     Returns:
-        bytes: Dữ liệu video
+        Tuple[bytes, Optional[str]]: Dữ liệu video và tiêu đề video (nếu có)
     """
     # Tạo file tạm thời
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_file:
@@ -758,8 +831,31 @@ async def download_youtube_video(youtube_url: str, websocket: Optional[WebSocket
         if websocket:
             await websocket.send_json({"status": "info", "message": "Đang trích xuất thông tin YouTube..."})
         
-        # Sử dụng hàm có sẵn trong utils.video
-        # Do hàm download_youtube_video_file là hàm đồng bộ, chúng ta chạy nó trong một thread riêng
+        # Lấy tiêu đề video YouTube
+        video_title = None
+        try:
+            import yt_dlp
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'noplaylist': True,
+                'skip_download': True,  # Chỉ lấy thông tin, không tải video
+            }
+            # Chạy trong thread riêng để không block
+            def extract_info():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(youtube_url, download=False)
+                    return info.get('title') if info else None
+                    
+            video_title = await asyncio.to_thread(extract_info)
+            
+            if video_title:
+                logger.info(f"Lấy được tiêu đề video YouTube: {video_title}")
+                if websocket:
+                    await websocket.send_json({"status": "info", "message": f"Lấy được thông tin video: {video_title}"})
+        except Exception as e:
+            logger.warning(f"Không thể lấy thông tin video YouTube: {str(e)}")
+            # Tiếp tục tải video mà không có tiêu đề
         
         # Thực hiện tải xuống
         if websocket:
@@ -780,7 +876,7 @@ async def download_youtube_video(youtube_url: str, websocket: Optional[WebSocket
         with open(temp_path, "rb") as f:
             video_data = f.read()
             
-        return video_data
+        return video_data, video_title
     
     except Exception as e:
         logger.error(f"Lỗi khi tải video từ YouTube: {str(e)}")

@@ -116,7 +116,7 @@ async def save_upload_file(file: UploadFile, filename: Optional[str] = None) -> 
         )
 
 
-def download_youtube_video(youtube_url: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
+def download_youtube_video(youtube_url: str) -> Tuple[bool, str, Optional[str], Optional[str], Optional[str]]:
     """
     Tải video từ YouTube và upload trực tiếp lên Cloudinary
     
@@ -124,14 +124,33 @@ def download_youtube_video(youtube_url: str) -> Tuple[bool, str, Optional[str], 
         youtube_url: URL YouTube
         
     Returns:
-        Tuple[bool, str, Optional[str], Optional[str]]: 
+        Tuple[bool, str, Optional[str], Optional[str], Optional[str]]: 
             - Trạng thái thành công
             - Thông báo
             - URL Cloudinary nếu tải thành công
             - Cloudinary public_id
+            - Tiêu đề video YouTube
     """
     import tempfile
     try:
+        # Lấy thông tin video, bao gồm tiêu đề
+        video_title = None
+        try:
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'noplaylist': True,
+                'skip_download': True,  # Chỉ lấy thông tin, không tải video
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(youtube_url, download=False)
+                if info and 'title' in info:
+                    video_title = info['title']
+                    logger.info(f"Thông tin video YouTube: {video_title}")
+        except Exception as e:
+            logger.warning(f"Không thể lấy thông tin video YouTube: {str(e)}")
+            # Tiếp tục tải video mà không có tiêu đề
+            
         # Tải video thật từ YouTube về file tạm
         with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp_file:
             tmp_path = tmp_file.name
@@ -140,7 +159,7 @@ def download_youtube_video(youtube_url: str) -> Tuple[bool, str, Optional[str], 
             # Kiểm tra file đã tải về có tồn tại và dung lượng hợp lệ không
             if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
                 logger.error(f"File tải về không hợp lệ hoặc rỗng: {tmp_path}")
-                return False, "Không thể tải video từ YouTube (file rỗng)", None, None
+                return False, "Không thể tải video từ YouTube (file rỗng)", None, None, None
             # Đọc nội dung file vừa tải
             with open(tmp_path, 'rb') as f:
                 video_bytes = f.read()
@@ -152,16 +171,16 @@ def download_youtube_video(youtube_url: str) -> Tuple[bool, str, Optional[str], 
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
         if not success:
-            return False, message, None, None
+            return False, message, None, None, None
         cloud_url = result.get("secure_url")
         public_id = result.get("public_id")
         logger.info(f"Video YouTube đã được tải lên Cloudinary: {cloud_url}")
-        return True, "Tải video YouTube thành công", cloud_url, public_id
+        return True, "Tải video YouTube thành công", cloud_url, public_id, video_title
     except Exception as e:
         error_details = traceback.format_exc()
         logger.error(f"Lỗi khi tải video YouTube: {str(e)}")
         logger.error(f"Chi tiết lỗi: {error_details}")
-        return False, f"Lỗi khi tải video: {str(e)}", None, None
+        return False, f"Lỗi khi tải video: {str(e)}", None, None, None
 
 
 def upload_video_to_cloudinary_and_cleanup(local_path: str, folder: str = None):

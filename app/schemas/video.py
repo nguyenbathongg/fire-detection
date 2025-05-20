@@ -12,6 +12,7 @@ from app.schemas.fire_detection import FireDetection
 class VideoBase(BaseModel):
     video_type: Optional[VideoTypeEnum] = None
     youtube_url: Optional[str] = None
+    file_name: Optional[str] = None
 
 
 class VideoCreate(VideoBase):
@@ -21,6 +22,7 @@ class VideoCreate(VideoBase):
 class VideoUpdate(BaseModel):
     video_type: Optional[VideoTypeEnum] = None
     youtube_url: Optional[str] = None
+    file_name: Optional[str] = None
     status: Optional[StatusEnum] = None
     fire_detected: Optional[bool] = None
 

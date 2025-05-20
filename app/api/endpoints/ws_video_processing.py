@@ -776,7 +776,7 @@ async def process_direct_video_websocket(websocket: WebSocket):
                                 avg_confidence = sum(confidence_values) / len(confidence_values) if confidence_values else 0.0
                                 
                                 # Chỉ gửi email nếu độ tin cậy đủ cao
-                                if avg_confidence >= 0.6:  # Ngưỡng tối thiểu 60% để giảm cảnh báo sai
+                                if avg_confidence >= 0.5:  # Ngưỡng tối thiểu 50% để giảm cảnh báo sai
                                     # Gửi email thông báo phát hiện lửa
                                     detection_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                                     video_title = f"Phát hiện đám cháy trong video"

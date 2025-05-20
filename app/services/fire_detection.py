@@ -140,20 +140,18 @@ def predict_and_display(model, video_path, output_path=None, initial_skip_frames
 
                 fire_detected = False
                 total_fire_area = 0.0
-                
                 current_boxes = []
                 current_masks = []
+                current_confidences = []  # Thêm list để lưu confidence của frame hiện tại
                 
                 # Xử lý và lưu trữ mask
                 if segments is not None:
                     masks = segments.data.cpu().numpy()
                     for mask in masks:
                         mask_resized = cv2.resize(mask, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
-                        # Lưu mask vào cache hiện tại
                         mask_hash = hash(mask_resized.tobytes())
                         current_masks.append((mask_resized, mask_hash))
                         
-                        # Vẽ mask
                         blue_mask = np.zeros_like(frame, dtype=np.uint8)
                         blue_mask[mask_resized > 0.5] = (255, 0, 0)
                         alpha = 0.6
@@ -166,51 +164,44 @@ def predict_and_display(model, video_path, output_path=None, initial_skip_frames
                 for mask_resized, mask_hash in current_masks:
                     new_mask_cache[mask_hash] = (mask_resized, mask_hold_frames)
                 
-                # Giữ lại các mask trong cache
                 for mask_hash, (stored_mask, remain) in mask_cache.items():
                     if mask_hash not in new_mask_cache and remain > 0:
                         new_mask_cache[mask_hash] = (stored_mask, remain - 1)
-                        
-                        # Vẽ mask từ cache
                         blue_mask = np.zeros_like(frame, dtype=np.uint8)
                         blue_mask[stored_mask > 0.5] = (255, 0, 0)
-                        alpha = 0.6  # Giảm độ đậm cho mask cũ
+                        alpha = 0.6
                         overlay = frame.copy()
                         overlay[stored_mask > 0.5] = blue_mask[stored_mask > 0.5]
                         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
                 
                 mask_cache = new_mask_cache
 
-                # Xử lý bounding box
+                # Xử lý bounding box và confidence
                 if detections is not None:
                     for det in detections:
-                        if int(det.cls[0].item()) == 0:
+                        if int(det.cls[0].item()) == 0:  # Nếu là class fire
                             x1, y1, x2, y2 = det.xyxy[0].cpu().numpy().astype(int)
                             conf = float(det.conf[0].item())
                             current_boxes.append(((x1, y1, x2, y2), conf))
+                            current_confidences.append(conf)  # Thêm confidence vào list
 
                 # Cập nhật cache bounding box
                 new_cache = {}
-
-                # Thêm các box mới vào cache
                 for (x1, y1, x2, y2), conf in current_boxes:
                     key = (x1, y1, x2, y2)
-                    new_cache[key] = (max_hold_frames, conf)  # (số frame giữ lại, confidence)
+                    new_cache[key] = (max_hold_frames, conf)
 
-                # Giữ lại các box cũ trong cache
                 for key, (remain, old_conf) in bbox_cache.items():
                     if key not in new_cache and remain > 0:
                         new_cache[key] = (remain - 1, old_conf)
+                        current_confidences.append(old_conf)  # Thêm confidence của box cũ vào list
 
                 bbox_cache = new_cache
 
-                # Vẽ tất cả bounding box từ cache
+                # Vẽ tất cả bounding box từ cache và tính diện tích
                 for (x1, y1, x2, y2), (remain, conf) in bbox_cache.items():
                     if remain > 0:
-                        # Alpha giảm dần theo số frame còn lại để tạo hiệu ứng mờ dần
                         box_alpha = 1.0 if remain == max_hold_frames else 0.6 + (0.4 * remain / max_hold_frames)
-                        
-                        # Màu đậm dần theo confidence
                         color_intensity = min(255, int(200 + (conf * 55)))
                         box_color = (color_intensity, 0, 0)
                         
@@ -224,44 +215,43 @@ def predict_and_display(model, video_path, output_path=None, initial_skip_frames
                         total_fire_area += area
                         fire_detected = True
 
-                # Tính FPS đơn giản nếu không skip frame
+                # Tính FPS
                 if not is_skipped:
                     current_time = time.time()
                     avg_fps = 1.0 / (current_time - prev_time)
                     prev_time = current_time
 
                 # Vẽ FPS
-                # Nội dung và vị trí
                 text = f"FPS: {avg_fps:.0f}"
                 position = (5, 35)
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 1.2
                 thickness = 2
 
-                # Tính kích thước ô chữ
                 (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
                 x, y = position
                 box_coords = ((x - 5, y - text_height - 10), (x + text_width + 5, y + 5))
 
-                # Tạo lớp overlay để vẽ nền trong suốt
                 overlay = frame.copy()
-                cv2.rectangle(overlay, box_coords[0], box_coords[1], (255, 0, 0), -1)  # màu nền xanh dương
-
-                # Áp dụng overlay trong suốt
-                alpha = 0.25  # Độ trong suốt
+                cv2.rectangle(overlay, box_coords[0], box_coords[1], (255, 0, 0), -1)
+                alpha = 0.25
                 cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
-
-                # Vẽ chữ màu trắng lên frame
                 cv2.putText(frame, text, position, font, font_scale, (255, 255, 255), thickness)
 
+                # Tính confidence trung bình cho frame hiện tại
+                avg_confidence = sum(current_confidences) / len(current_confidences) if current_confidences else 0.0
+
+                # Cập nhật frame_info với confidence
                 frame_info = {
                     "frame": idx,
                     "video_time": video_time_str,
                     "fire_detected": fire_detected,
-                    "total_area": round(float(total_fire_area), 4)
+                    "total_area": round(float(total_fire_area), 4),
+                    "confidence": round(float(avg_confidence), 4)  # Thêm confidence vào frame_info
                 }
 
-                out.write(frame)
+                if out is not None:
+                    out.write(frame)
                 if not is_skipped:
                     yield frame, frame_info
 
@@ -282,7 +272,8 @@ def predict_and_display(model, video_path, output_path=None, initial_skip_frames
         capture_t.join(timeout=1)
         inference_t.join(timeout=1)
         cap.release()
-        out.release()
+        if out is not None:
+            out.release()
 
 class FireDetectionService:      
     def __init__(self):
@@ -382,7 +373,6 @@ class FireDetectionService:
             return False
             
 
-        
     def detect_fire_from_memory(self, video_data: bytes) -> Tuple[bool, List[Dict], Optional[Tuple[bytes, str]]]:
         """
         Phát hiện đám cháy trong video từ bộ nhớ
@@ -1339,3 +1329,4 @@ class FireDetectionService:
                 pass
                 
             return {"success": False, "message": str(e)} 
+        

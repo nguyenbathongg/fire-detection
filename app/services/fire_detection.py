@@ -62,7 +62,7 @@ def predict_and_display(model, video_path, output_path=None, initial_skip_frames
     # Khởi tạo VideoWriter nếu có output_path
     out = None
     if output_path:
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        fourcc = cv2.VideoWriter_fourcc(*'X264')
         out = cv2.VideoWriter(output_path, fourcc, fps_video, (width, height))
 
     frame_queue = queue.Queue(maxsize=0)
@@ -1272,7 +1272,7 @@ class FireDetectionService:
                     temp_video_path = f"temp_video_{uuid.uuid4()}.mp4"
                     
                     # Tạo VideoWriter
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    fourcc = cv2.VideoWriter_fourcc(*'X264')
                     out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
                     
                     # Ghi từng frame vào video

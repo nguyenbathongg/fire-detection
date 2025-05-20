@@ -124,20 +124,38 @@ fire-detection/
 ## API Endpoints
 
 ### Authentication
+- `POST /api/v1/auth/login-email`: Đăng nhập bằng email
 - `POST /api/v1/auth/register`: Đăng ký tài khoản mới
-- `POST /api/v1/auth/login`: Đăng nhập
+- `POST /api/v1/auth/change-password`: Thay đổi mật khẩu
+- `POST /api/v1/auth/verify-token`: Xác thực token
 
-### Video Processing
-- `POST /api/v1/videos`: Tải lên video mới
-- `GET /api/v1/videos`: Lấy danh sách video của người dùng
-- `GET /api/v1/videos/{video_id}`: Xem chi tiết video
+### Users
+- `GET /api/v1/users/me`: Lấy thông tin người dùng hiện tại
+- `PUT /api/v1/users/me`: Cập nhật thông tin người dùng hiện tại
+- `GET /api/v1/users`: Lấy danh sách người dùng
+- `POST /api/v1/users`: Tạo người dùng mới
+- `GET /api/v1/users/{user_id}`: Lấy thông tin người dùng theo ID
+- `DELETE /api/v1/users/{user_id}`: Xóa người dùng
+
+### Videos
+- `GET /api/v1/videos`: Lấy danh sách video người dùng tải lên
+- `GET /api/v1/videos/all`: Lấy danh sách tất cả video 
+- `GET /api/v1/videos/{video_id}`: Lấy thông tin chi tiết video
 - `DELETE /api/v1/videos/{video_id}`: Xóa video
-- `GET /api/v1/videos/{video_id}/status`: Kiểm tra trạng thái xử lý
-- `GET /api/v1/videos/{video_id}/result`: Lấy kết quả phát hiện
+
+### Notifications
+- `GET /api/v1/notifications`: Lấy danh sách thông báo
+- `POST /api/v1/notifications`: Tạo thông báo mới
+- `GET /api/v1/notifications/settings`: Lấy cài đặt thông báo
+- `POST /api/v1/notifications/settings`: Cập nhật cài đặt thông báo
+
+### User History
+- `GET /api/v1/history/me`: Lấy lịch sử hoạt động của người dùng hiện tại
+- `GET /api/v1/history`: Lấy lịch sử hoạt động của tất cả người dùng
+- `GET /api/v1/history/{user_id}`: Lấy lịch sử hoạt động của người dùng cụ thể
 
 ### WebSocket
-- `WS /ws/videos/{video_id}`: Stream kết quả xử lý video
-
+- `WS /ws/videos/{video_id}`: Stream kết quả xử lý video theo thời gian thực
 
 ## Lưu trữ media
 

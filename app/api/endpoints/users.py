@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=UserSchema)
-def read_user_me(
+async def read_user_me(
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
@@ -25,7 +25,7 @@ def read_user_me(
 
 
 @router.put("/me", response_model=UserSchema)
-def update_user_me(
+async def update_user_me(
     *,
     db: Session = Depends(get_db),
     user_in: UserUpdate,
@@ -70,7 +70,7 @@ def update_user_me(
 
 
 @router.get("", response_model=List[UserSchema])
-def read_users(
+async def read_users(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
@@ -84,7 +84,7 @@ def read_users(
 
 
 @router.post("", response_model=UserSchema)
-def create_user(
+async def create_user(
     *,
     db: Session = Depends(get_db),
     user_in: UserCreate,
@@ -128,7 +128,7 @@ def create_user(
 
 
 @router.get("/{user_id}", response_model=UserSchema)
-def read_user(
+async def read_user(
     *,
     db: Session = Depends(get_db),
     user_id: uuid.UUID,
@@ -147,7 +147,7 @@ def read_user(
 
 
 @router.delete("/{user_id}")
-def delete_user(
+async def delete_user(
     *,
     db: Session = Depends(get_db),
     user_id: uuid.UUID,

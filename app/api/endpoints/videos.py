@@ -320,7 +320,7 @@ async def create_video(
 
 
 @router.get("", response_model=List[VideoSchema])
-def read_videos(
+async def read_videos(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
@@ -338,7 +338,7 @@ def read_videos(
 from sqlalchemy.orm import joinedload
 
 @router.get("/all")
-def read_all_videos(
+async def read_all_videos(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
@@ -363,7 +363,7 @@ def read_all_videos(
 
 
 @router.get("/{video_id}", response_model=VideoWithDetections)
-def read_video(
+async def read_video(
     *,
     db: Session = Depends(get_db),
     video_id: uuid.UUID,
@@ -446,7 +446,7 @@ def test_cloudinary_connection():
 
 
 @router.delete("/{video_id}")
-def delete_video(
+async def delete_video(
     *,
     db: Session = Depends(get_db),
     video_id: uuid.UUID,

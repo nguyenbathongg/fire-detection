@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=List[NotificationSchema])
-def read_notifications(
+async def read_notifications(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
@@ -41,7 +41,7 @@ def read_notifications(
 
 
 @router.post("", response_model=NotificationSchema)
-def create_notification(
+async def create_notification(
     *,
     db: Session = Depends(get_db),
     notification_in: NotificationCreate,
@@ -85,7 +85,7 @@ def create_notification(
 
 
 @router.get("/settings", response_model=NotificationSettings)
-def get_notification_settings(
+async def get_notification_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
@@ -112,7 +112,7 @@ def get_notification_settings(
 
 
 @router.post("/settings", response_model=NotificationSettings)
-def update_notification_settings(
+async def update_notification_settings(
     *,
     db: Session = Depends(get_db),
     settings: NotificationSettings,

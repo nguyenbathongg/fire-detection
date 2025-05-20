@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=List[UserHistorySchema])
-def read_user_history_me(
+async def read_user_history_me(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
@@ -41,7 +41,7 @@ def read_user_history_me(
 
 
 @router.get("", response_model=List[UserHistorySchema])
-def read_all_user_history(
+async def read_all_user_history(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
@@ -56,7 +56,7 @@ def read_all_user_history(
 
 
 @router.get("/{user_id}", response_model=List[UserHistorySchema])
-def read_user_history(
+async def read_user_history(
     *,
     db: Session = Depends(get_db),
     user_id: uuid.UUID,

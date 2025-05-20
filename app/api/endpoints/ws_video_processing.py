@@ -463,40 +463,72 @@ async def process_direct_video_websocket(websocket: WebSocket):
             email_sent = False
             detection_frame_info = None
             
+            # Thêm biến để theo dõi các phát hiện cháy và độ tin cậy
+            fire_frames_count = 0
+            confidence_values = []
+            fire_areas = []
+            consecutive_fire_frames = 0
+            
             for frame, frame_info in predict_and_display(fire_service.model, cloudinary_url, temp_output_path):
                 frame_count += 1
                 
-                # Nếu phát hiện lửa, cập nhật trạng thái
-                if frame_info.get("fire_detected", False) and not fire_detected:
-                    fire_detected = True
-                    detection_frame_info = frame_info.copy()  # Lưu thông tin frame phát hiện lửa
+                # Nếu phát hiện lửa trong frame
+                current_frame_has_fire = frame_info.get("fire_detected", False)
+                
+                if current_frame_has_fire:
+                    # Tăng số frame phát hiện có cháy và tăng số frame liên tiếp
+                    fire_frames_count += 1
+                    consecutive_fire_frames += 1
                     
-                    # Gửi thông báo phát hiện lửa qua WebSocket
-                    try:
-                        await websocket.send_json({
-                            "status": "alert", 
-                            "message": "PHÁT HIỆN LỬA!",
-                            "frame_info": frame_info
-                        })
-                    except:
-                        pass
+                    # Thu thập thông tin confidence và diện tích
+                    if "total_area" in frame_info:
+                        fire_areas.append(frame_info["total_area"])
                     
-                    # Chỉ ghi nhận phát hiện lửa, không gửi email ngay (sẽ gửi sau khi hoàn tất xử lý)
-                    if user:
-                        # Ghi log debug
-                        logger.info(f"Người dùng đã đăng nhập: {user.username}, user_id: {user.user_id}")
+                    # Cập nhật thông tin để tính confidence chính xác
+                    confidence = frame_info.get("confidence", 0)
+                    if confidence > 0:
+                        confidence_values.append(confidence)
+                    
+                    # Nếu đạt đủ số frame liên tiếp có cháy và chưa đánh dấu là phát hiện cháy
+                    if consecutive_fire_frames >= 5 and not fire_detected:
+                        fire_detected = True
+                        detection_frame_info = frame_info.copy()
                         
-                        # Kiểm tra cài đặt thông báo của người dùng
-                        notification_settings = db.query(Notification).filter(Notification.user_id == user.user_id).first()
+                        # Cập nhật thông tin cho detection_frame_info
+                        if confidence_values:
+                            detection_frame_info["confidence"] = sum(confidence_values) / len(confidence_values)
+                        if fire_areas:
+                            detection_frame_info["total_area"] = sum(fire_areas) / len(fire_areas)
                         
-                        # Ghi log thông tin notification settings
-                        if notification_settings:
-                            logger.info(f"Tìm thấy cài đặt thông báo: enable_email_notification={notification_settings.enable_email_notification}")
-                            # Thông báo cho client về trạng thái email
-                            if notification_settings.enable_email_notification:
-                                await websocket.send_json({"status": "info", "message": "Sẽ gửi email thông báo sau khi xử lý hoàn tất..."})
-                        else:
-                            logger.info(f"Không tìm thấy cài đặt thông báo cho user_id={user.user_id}")
+                        # Gửi thông báo phát hiện lửa qua WebSocket
+                        try:
+                            await websocket.send_json({
+                                "status": "alert", 
+                                "message": f"PHÁT HIỆN LỬA! Đã xác nhận qua {consecutive_fire_frames} frame liên tiếp.",
+                                "frame_info": detection_frame_info
+                            })
+                        except:
+                            pass
+                        
+                        # Chỉ ghi nhận phát hiện lửa, không gửi email ngay (sẽ gửi sau khi hoàn tất xử lý)
+                        if user:
+                            # Ghi log debug
+                            logger.info(f"Người dùng đã đăng nhập: {user.username}, user_id: {user.user_id}")
+                            
+                            # Kiểm tra cài đặt thông báo của người dùng
+                            notification_settings = db.query(Notification).filter(Notification.user_id == user.user_id).first()
+                            
+                            # Ghi log thông tin notification settings
+                            if notification_settings:
+                                logger.info(f"Tìm thấy cài đặt thông báo: enable_email_notification={notification_settings.enable_email_notification}")
+                                # Thông báo cho client về trạng thái email
+                                if notification_settings.enable_email_notification:
+                                    await websocket.send_json({"status": "info", "message": "Sẽ gửi email thông báo sau khi xử lý hoàn tất..."})
+                            else:
+                                logger.info(f"Không tìm thấy cài đặt thông báo cho user_id={user.user_id}")
+                else:
+                    # Reset số frame liên tiếp khi không có cháy
+                    consecutive_fire_frames = 0
                 
                 # Chuyển frame thành JPEG và gửi qua WebSocket
                 try:
@@ -721,49 +753,74 @@ async def process_direct_video_websocket(websocket: WebSocket):
                 
                 # Gửi email thông báo nếu phát hiện lửa và chưa gửi trước đó 
                 # Bây giờ chúng ta có cả URL của video gốc và video đã xử lý
-                if fire_detected and user and not email_sent:
-                    logger.info(f"Bắt đầu gửi email thông báo phát hiện lửa sau khi hoàn tất xử lý")
-                    try:
-                        # Thông báo cho client
+                if fire_detected and user and not email_sent and fire_frames_count >= 5:
+                    # Tính tỷ lệ frame có cháy / tổng số frame
+                    fire_frame_ratio = fire_frames_count / frame_count if frame_count > 0 else 0
+                    
+                    # Kiểm tra tỷ lệ frame có cháy để đảm bảo không phải cảnh báo sai
+                    if fire_frame_ratio >= 0.01:  # Ít nhất 1% số frame có cháy
+                        logger.info(f"Bắt đầu gửi email thông báo phát hiện lửa sau khi hoàn tất xử lý (tỷ lệ frame có cháy: {fire_frame_ratio:.2%})")
                         try:
-                            await websocket.send_json({"status": "info", "message": "Chuẩn bị gửi email thông báo phát hiện lửa..."})
-                        except:
-                            pass  # Không dừng quá trình nếu gửi thông báo thất bại
+                            # Thông báo cho client
+                            try:
+                                await websocket.send_json({"status": "info", "message": "Chuẩn bị gửi email thông báo phát hiện lửa..."})
+                            except:
+                                pass  # Không dừng quá trình nếu gửi thông báo thất bại
+                                
+                            # Kiểm tra cài đặt thông báo của người dùng lần nữa
+                            notification_settings = db.query(Notification).filter(Notification.user_id == user.user_id).first()
+                            logger.info(f"Kiểm tra lại cài đặt thông báo cho user_id={user.user_id}")
                             
-                        # Kiểm tra cài đặt thông báo của người dùng lần nữa
-                        notification_settings = db.query(Notification).filter(Notification.user_id == user.user_id).first()
-                        logger.info(f"Kiểm tra lại cài đặt thông báo cho user_id={user.user_id}")
-                        
-                        if notification_settings and notification_settings.enable_email_notification:
-                            # Gửi email thông báo phát hiện lửa
-                            detection_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                            video_title = f"Phát hiện đám cháy trong video"
-                            confidence = detection_frame_info.get("confidence", 0.8) if detection_frame_info else 0.8
-                            
-                            logger.info(f"Gửi email thông báo cho {user.email} với video gốc: {cloudinary_url} và video đã xử lý: {processed_url}")
-                            
-                            # Gọi hàm gửi email
-                            email_result = send_fire_detection_notification(
-                                user_email=user.email,
-                                video_title=video_title,
-                                detection_time=detection_time,
-                                video_url=cloudinary_url,
-                                processed_video_url=processed_url,
-                                confidence=confidence
-                            )
-                            
-                            if email_result:
-                                logger.info(f"Đã gửi email thông báo phát hiện lửa đến {user.email} thành công")
-                                email_sent = True
-                                try:
-                                    await websocket.send_json({"status": "email", "message": f"Đã gửi email thông báo phát hiện lửa đến {user.email}"})
-                                except:
-                                    pass
+                            if notification_settings and notification_settings.enable_email_notification:
+                                # Tính toán confidence trung bình từ các frame có cháy
+                                avg_confidence = sum(confidence_values) / len(confidence_values) if confidence_values else 0.0
+                                
+                                # Chỉ gửi email nếu độ tin cậy đủ cao
+                                if avg_confidence >= 0.6:  # Ngưỡng tối thiểu 60% để giảm cảnh báo sai
+                                    # Gửi email thông báo phát hiện lửa
+                                    detection_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                                    video_title = f"Phát hiện đám cháy trong video"
+                                    
+                                    logger.info(f"Gửi email thông báo cho {user.email} với video gốc: {cloudinary_url} và video đã xử lý: {processed_url}")
+                                    logger.info(f"Thông tin phát hiện: Độ tin cậy trung bình = {avg_confidence:.2f}, Số frame có cháy = {fire_frames_count}")
+                                    
+                                    # Gọi hàm gửi email
+                                    email_result = send_fire_detection_notification(
+                                        user_email=user.email,
+                                        video_title=video_title,
+                                        detection_time=detection_time,
+                                        video_url=cloudinary_url,
+                                        processed_video_url=processed_url,
+                                        confidence=avg_confidence
+                                    )
+                                    
+                                    if email_result:
+                                        logger.info(f"Đã gửi email thông báo phát hiện lửa đến {user.email} thành công")
+                                        email_sent = True
+                                        try:
+                                            await websocket.send_json({"status": "email", "message": f"Đã gửi email thông báo phát hiện lửa đến {user.email}"})
+                                        except:
+                                            pass
+                                    else:
+                                        logger.error(f"Không thể gửi email thông báo đến {user.email}")
+                                else:
+                                    logger.info(f"Không gửi email do độ tin cậy trung bình quá thấp: {avg_confidence:.2f} < 0.6")
                             else:
-                                logger.error(f"Không thể gửi email thông báo đến {user.email}")
-                    except Exception as email_error:
-                        logger.error(f"Lỗi khi gửi email thông báo: {str(email_error)}")
-                        # Lỗi này không ảnh hưởng đến kết quả cuối cùng, chỉ ghi log
+                                logger.info(f"Không gửi email do người dùng không bật thông báo email hoặc không có cài đặt thông báo")
+                        except Exception as email_error:
+                            logger.error(f"Lỗi khi gửi email thông báo: {str(email_error)}")
+                            # Lỗi này không ảnh hưởng đến kết quả cuối cùng, chỉ ghi log
+                else:
+                    if fire_detected:
+                        if not user:
+                            logger.info("Không gửi email vì người dùng chưa đăng nhập")
+                        elif email_sent:
+                            logger.info("Email đã được gửi trước đó")
+                        else:
+                            fire_frame_ratio = fire_frames_count / frame_count if frame_count > 0 else 0
+                            logger.info(f"Không gửi email do số frame có cháy không đủ: {fire_frames_count} frames ({fire_frame_ratio:.2%})")
+                    else:
+                        logger.info("Không gửi email vì không phát hiện cháy")
             else:
                 # Thông báo lỗi
                 try:

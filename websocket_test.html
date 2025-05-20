@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,38 +13,47 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
+
         h1 {
             color: #d32f2f;
             text-align: center;
         }
+
         .container {
             display: flex;
             flex-wrap: wrap;
             gap: 20px;
         }
-        .input-section, .output-section {
+
+        .input-section,
+        .output-section {
             flex: 1;
             min-width: 300px;
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
+
         .form-group {
             margin-bottom: 15px;
         }
+
         label {
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
         }
-        input, button {
+
+        input,
+        button {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             box-sizing: border-box;
         }
+
         button {
             background-color: #d32f2f;
             color: white;
@@ -52,25 +62,31 @@
             font-weight: bold;
             margin-top: 10px;
         }
+
         button:hover {
             background-color: #b71c1c;
         }
+
         .status {
             padding: 10px;
             margin: 10px 0;
             border-radius: 4px;
             background-color: #f0f0f0;
         }
+
         .video-container {
             position: relative;
             width: 100%;
             height: 0;
-            padding-bottom: 56.25%; /* Tỷ lệ 16:9 */
+            padding-bottom: 56.25%;
+            /* Tỷ lệ 16:9 */
             overflow: hidden;
             margin-top: 10px;
             background-color: #000;
         }
-        #videoDisplay, #processedVideo {
+
+        #videoDisplay,
+        #processedVideo {
             position: absolute;
             width: 100%;
             height: 100%;
@@ -78,6 +94,7 @@
             left: 0;
             object-fit: contain;
         }
+
         .progress-container {
             margin-top: 15px;
             width: 100%;
@@ -85,6 +102,7 @@
             border-radius: 4px;
             overflow: hidden;
         }
+
         .progress-bar {
             height: 20px;
             background-color: #4caf50;
@@ -94,11 +112,13 @@
             width: 0%;
             transition: width 0.3s;
         }
+
         .tab-buttons {
             display: flex;
             margin-bottom: 15px;
             gap: 5px;
         }
+
         .tab-button {
             flex: 1;
             padding: 10px;
@@ -108,16 +128,20 @@
             text-align: center;
             border-radius: 4px 4px 0 0;
         }
+
         .tab-button.active {
             background-color: #d32f2f;
             color: white;
         }
+
         .tab-content {
             display: none;
         }
+
         .tab-content.active {
             display: block;
         }
+
         .log-container {
             height: 200px;
             overflow-y: auto;
@@ -128,25 +152,30 @@
             font-size: 14px;
             margin-top: 15px;
         }
+
         .log-message {
             margin: 5px 0;
             padding: 5px;
             border-bottom: 1px solid #eee;
         }
+
         .log-message.info {
             color: #2196F3;
         }
+
         .log-message.error {
             color: #F44336;
         }
+
         .log-message.success {
             color: #4CAF50;
         }
     </style>
 </head>
+
 <body>
     <h1>Test Phát Hiện Đám Cháy qua WebSocket</h1>
-    
+
     <div class="container">
         <div class="input-section">
             <div class="auth-section">
@@ -156,12 +185,12 @@
                     <small>*Nếu có token, hệ thống có thể gửi email thông báo khi phát hiện lửa</small>
                 </div>
             </div>
-            
+
             <div class="tab-buttons">
                 <button class="tab-button active" data-tab="upload">Upload Video</button>
                 <button class="tab-button" data-tab="youtube">YouTube URL</button>
             </div>
-            
+
             <div class="tab-content active" id="upload-tab">
                 <div class="form-group">
                     <label for="videoFile">Chọn File Video:</label>
@@ -169,7 +198,7 @@
                 </div>
                 <button id="uploadBtn">Xử Lý Video</button>
             </div>
-            
+
             <div class="tab-content" id="youtube-tab">
                 <div class="form-group">
                     <label for="youtubeUrl">YouTube URL:</label>
@@ -177,24 +206,24 @@
                 </div>
                 <button id="youtubeBtn">Xử Lý Video YouTube</button>
             </div>
-            
+
             <div class="status" id="status">Trạng thái: Chờ xử lý</div>
-            
+
             <div class="progress-container">
                 <div class="progress-bar" id="progress">0%</div>
             </div>
-            
+
             <div class="log-container" id="log">
                 <div class="log-message">Chờ kết nối...</div>
             </div>
         </div>
-        
+
         <div class="output-section">
             <h2>Kết Quả Realtime</h2>
             <div class="video-container">
                 <img id="videoDisplay" src="" alt="Video đang xử lý">
             </div>
-            
+
             <h2>Video Đã Xử Lý</h2>
             <div class="video-container">
                 <video id="processedVideo" controls>
@@ -218,22 +247,22 @@
         const logContainer = document.getElementById('log');
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
-        
+
         // Xử lý chuyển tab
         tabButtons.forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function () {
                 const tabId = this.getAttribute('data-tab');
-                
+
                 // Đổi trạng thái active của các tab
                 tabButtons.forEach(btn => btn.classList.remove('active'));
                 this.classList.add('active');
-                
+
                 // Hiển thị nội dung tab tương ứng
                 tabContents.forEach(content => content.classList.remove('active'));
                 document.getElementById(`${tabId}-tab`).classList.add('active');
             });
         });
-        
+
         // Thêm log message
         function addLog(message, type = 'info') {
             const logMessage = document.createElement('div');
@@ -242,54 +271,54 @@
             logContainer.appendChild(logMessage);
             logContainer.scrollTop = logContainer.scrollHeight;
         }
-        
+
         // Thiết lập WebSocket
         let socket = null;
-        
+
         function connectWebSocket() {
             // Đóng kết nối cũ nếu có
             if (socket) {
                 socket.close();
             }
-            
+
             // Tạo kết nối WebSocket mới
             // Dùng đường dẫn chính xác gồm prefix API + prefix WS + endpoint
             socket = new WebSocket('ws://localhost:8000/api/v1/ws/direct-process');
-            
+
             // Nếu đường dẫn trên không hoạt động, hãy bỏ comment và thử một trong các đường dẫn sau:
             // socket = new WebSocket('ws://localhost:8001/api/ws/direct-process');
             // socket = new WebSocket('ws://localhost:8001/ws/direct-process');
             // socket = new WebSocket('ws://localhost:8001/direct-process');
-            
-            socket.onopen = function() {
+
+            socket.onopen = function () {
                 addLog('Đã kết nối WebSocket', 'success');
-                
+
                 // Gửi token xác thực nếu có
                 const token = document.getElementById('authToken').value.trim();
                 const authData = {
                     token: token
                 };
-                
+
                 if (token) {
                     addLog('Gửi token xác thực...');
                 } else {
                     addLog('Kết nối dưới dạng khách (không có token)');
                 }
-                
+
                 // Gửi thông tin xác thực trước
                 socket.send(JSON.stringify(authData));
             };
-            
-            socket.onclose = function() {
+
+            socket.onclose = function () {
                 addLog('Kết nối WebSocket đã đóng');
             };
-            
-            socket.onerror = function(error) {
+
+            socket.onerror = function (error) {
                 addLog('Lỗi WebSocket: ' + error, 'error');
                 statusText.textContent = 'Trạng thái: Lỗi kết nối';
             };
-            
-            socket.onmessage = function(event) {
+
+            socket.onmessage = function (event) {
                 // Kiểm tra loại dữ liệu nhận được
                 if (event.data instanceof Blob) {
                     // Đây là frame video
@@ -299,10 +328,10 @@
                     // Đây là JSON
                     try {
                         const data = JSON.parse(event.data);
-                        
+
                         // Cập nhật trạng thái và log
                         addLog(`${data.status}: ${data.message || JSON.stringify(data)}`);
-                        
+
                         // Xử lý theo loại message
                         if (data.status === 'info') {
                             statusText.textContent = `Trạng thái: ${data.message}`;
@@ -346,10 +375,10 @@
                     }
                 }
             };
-            
+
             return socket;
         }
-        
+
         // Reset giao diện
         function resetUI() {
             videoDisplay.src = '';
@@ -357,90 +386,90 @@
             statusText.textContent = 'Trạng thái: Đang kết nối...';
             progressBar.style.width = '0%';
             progressBar.textContent = '0%';
-            
+
             // Xóa log cũ, chỉ giữ lại thông báo kết nối
             while (logContainer.firstChild) {
                 logContainer.removeChild(logContainer.firstChild);
             }
             addLog('Đang khởi tạo kết nối WebSocket...');
         }
-        
+
         // Biến lưu trạng thái gửi file
         let isReadyToSend = false;
         let isServerReady = false;
-        
+
         // Xử lý khi nhấn nút Upload
-        uploadBtn.addEventListener('click', function() {
+        uploadBtn.addEventListener('click', function () {
             const videoFile = videoFileInput.files[0];
             if (!videoFile) {
                 alert('Vui lòng chọn file video!');
                 return;
             }
-            
+
             // Kiểm tra kích thước file
             const fileSize = videoFile.size;
             addLog(`Kích thước file: ${(fileSize / (1024 * 1024)).toFixed(2)} MB`);
-            
+
             // Reset UI và tạo kết nối mới
             resetUI();
             socket = connectWebSocket();
-            
+
             // Khi kết nối mở, gửi loại và tên file
-            socket.addEventListener('open', function() {
+            socket.addEventListener('open', function () {
                 addLog('Kết nối mở, gửi loại upload và tên file');
-                socket.send(JSON.stringify({ 
+                socket.send(JSON.stringify({
                     type: 'upload',
                     fileName: videoFile.name  // Thêm tên file vào thông điệp
                 }));
                 addLog(`Tên file gửi đi: ${videoFile.name}`);
             });
-            
+
             // Chỉ gửi dữ liệu binary khi server đã sẵn sàng
-            socket.addEventListener('message', function(event) {
+            socket.addEventListener('message', function (event) {
                 if (typeof event.data === 'string') {
                     try {
                         const data = JSON.parse(event.data);
                         console.log('Nhận tin nhắn từ server:', data);
-                        
+
                         if (data.status === 'ready') {
                             addLog('Server báo sẵn sàng nhận dữ liệu');
-                            
+
                             // Nếu file lớn hơn 15MB, luôn sử dụng phương pháp chunking
                             if (fileSize > 15 * 1024 * 1024) {
-                                addLog(`File lớn ${(fileSize / (1024 * 1024)).toFixed(2)} MB, sử dụng chunking...`);  
+                                addLog(`File lớn ${(fileSize / (1024 * 1024)).toFixed(2)} MB, sử dụng chunking...`);
                                 handleLargeFileUpload(videoFile, socket);
                             } else {
                                 // Đọc file và gửi thông thường cho file nhỏ
                                 const reader = new FileReader();
-                                
+
                                 // Tiến trình đọc
-                                reader.onprogress = function(e) {
+                                reader.onprogress = function (e) {
                                     if (e.lengthComputable) {
                                         const percent = Math.round((e.loaded / e.total) * 100);
                                         progressBar.style.width = `${percent}%`;
                                         progressBar.textContent = `Đang đọc: ${percent}%`;
                                     }
                                 };
-                                
+
                                 // Khi hoàn tất việc đọc
-                                reader.onload = function() {
+                                reader.onload = function () {
                                     addLog(`Đã đọc xong file vào bộ nhớ, chủẩn bị gửi...`);
                                     progressBar.textContent = `Đang gửi...`;
                                     progressBar.style.width = '50%';
-                                    
+
                                     // Thêm độ trễ nhỏ để tránh gửi dữ liệu ngay lập tức
-                                    setTimeout(function() {
+                                    setTimeout(function () {
                                         try {
                                             // Dùng ArrayBuffer cho dữ liệu nhị phân
                                             const arrayBuffer = reader.result;
                                             addLog(`Chuẩn bị gửi ${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)} MB dữ liệu...`);
-                                            
+
                                             // Kiểm tra kết nối trước khi gửi
                                             if (socket.readyState === WebSocket.OPEN) {
                                                 socket.send(arrayBuffer);
                                                 addLog(`Đã gửi ${(arrayBuffer.byteLength / (1024 * 1024)).toFixed(2)} MB dữ liệu thành công!`, 'success');
                                                 progressBar.style.width = '100%';
-                                                progressBar.textContent = 'Đã gửi xong, đang chờ xử lý...'; 
+                                                progressBar.textContent = 'Đã gửi xong, đang chờ xử lý...';
                                             } else {
                                                 addLog(`Lỗi: WebSocket đã bị đóng (readyState=${socket.readyState})`, 'error');
                                             }
@@ -450,13 +479,13 @@
                                         }
                                     }, 500);
                                 };
-                                
+
                                 // Nếu gặp lỗi khi đọc
-                                reader.onerror = function(error) {
+                                reader.onerror = function (error) {
                                     addLog(`Lỗi khi đọc file: ${error}`, 'error');
                                     console.error('Chi tiết lỗi đọc file:', error);
                                 };
-                                
+
                                 // Đọc file dưới dạng ArrayBuffer
                                 addLog(`Bắt đầu đọc file ${videoFile.name} (${(videoFile.size / (1024 * 1024)).toFixed(2)} MB)...`);
                                 reader.readAsArrayBuffer(videoFile);
@@ -475,7 +504,7 @@
                 }
             });
         });
-        
+
         // Hàm xử lý upload file lớn bằng phương pháp chunking
         function handleLargeFileUpload(videoFile, socket) {
             // Kích thước chunk
@@ -483,12 +512,12 @@
             const totalChunks = Math.ceil(videoFile.size / CHUNK_SIZE);
             let currentChunk = 0;
             let waitingForServerReady = false;
-            
+
             addLog(`File lớn ${videoFile.name} (${(videoFile.size / (1024 * 1024)).toFixed(2)} MB) sẽ được chia thành ${totalChunks} phần, mỗi phần ${formatFileSize(CHUNK_SIZE)}`);
-            
+
             // Cấu hình sự kiện message để xử lý các trả lời từ server
             socket.addEventListener('message', handleServerMessages);
-            
+
             // Thông báo cho server về việc sẽ gửi file theo chuỗi
             addLog("Gửi thông tin chunk_info đến server...");
             socket.send(JSON.stringify({
@@ -498,14 +527,14 @@
                 mimeType: videoFile.type,
                 totalChunks: totalChunks
             }));
-            
+
             // Xử lý các tin nhắn từ server
             function handleServerMessages(event) {
                 if (typeof event.data === 'string') {
                     try {
                         const data = JSON.parse(event.data);
                         console.log("Nhận thông điệp từ server:", data);
-                        
+
                         // Nếu server đã sẵn sàng nhận chunk tiếp theo
                         if (data.status === "chunk_ready" && waitingForServerReady) {
                             waitingForServerReady = false;
@@ -531,7 +560,7 @@
                             const percent = data.percent || 0;
                             progressBar.style.width = `${percent}%`;
                             progressBar.textContent = `Đã nhận ${data.currentChunk}/${data.totalChunks} (${percent}%)`;
-                            
+
                             // Nếu server báo đã nhận xong phần hiện tại, gửi phần mới
                             if (currentChunk < totalChunks - 1) {
                                 currentChunk++;
@@ -547,42 +576,42 @@
                     }
                 }
             }
-            
+
             // Gửi metadata của chunk
             function sendChunkMeta(chunkIndex) {
                 if (chunkIndex >= totalChunks) {
                     addLog('Tất cả các phần đã được gửi thành công!', 'success');
                     return;
                 }
-                
+
                 const start = chunkIndex * CHUNK_SIZE;
                 const end = Math.min(start + CHUNK_SIZE, videoFile.size);
                 const chunk = videoFile.slice(start, end);
-                
+
                 addLog(`Gửi metadata cho phần ${chunkIndex + 1}/${totalChunks}`);
-                
+
                 socket.send(JSON.stringify({
                     type: "chunk_meta",
                     chunkIndex: chunkIndex,
                     totalChunks: totalChunks,
                     chunkSize: chunk.size
                 }));
-                
+
                 // Đánh dấu đang chờ server sẵn sàng
                 waitingForServerReady = true;
             }
-            
+
             // Gửi dữ liệu phần
             function sendChunk(chunkIndex) {
                 const start = chunkIndex * CHUNK_SIZE;
                 const end = Math.min(start + CHUNK_SIZE, videoFile.size);
                 const chunk = videoFile.slice(start, end);
-                
+
                 addLog(`Đang đọc phần ${chunkIndex + 1}/${totalChunks} (${(chunk.size / 1024).toFixed(2)} KB)...`);
-                
+
                 const reader = new FileReader();
-                
-                reader.onload = function(e) {
+
+                reader.onload = function (e) {
                     try {
                         addLog(`Gửi dữ liệu binary cho phần ${chunkIndex + 1}/${totalChunks}`);
                         // Gửi dữ liệu binary
@@ -591,45 +620,46 @@
                         addLog(`Lỗi khi gửi phần ${chunkIndex + 1}: ${error.message}`, 'error');
                     }
                 };
-                
-                reader.onerror = function() {
+
+                reader.onerror = function () {
                     addLog(`Lỗi khi đọc phần ${chunkIndex + 1}/${totalChunks}`, 'error');
                 };
-                
+
                 reader.readAsArrayBuffer(chunk);
             }
         }
-        
+
         // Biến đã được dọi xuống để đơn giản hóa mã
-        
+
         // Xử lý khi nhấn nút YouTube
-        youtubeBtn.addEventListener('click', function() {
+        youtubeBtn.addEventListener('click', function () {
             const youtubeUrl = youtubeUrlInput.value.trim();
             if (!youtubeUrl) {
                 alert('Vui lòng nhập YouTube URL!');
                 return;
             }
-            
+
             // Reset UI và tạo kết nối mới
             resetUI();
             socket = connectWebSocket();
-            
+
             // Khi kết nối mở, gửi thông tin YouTube URL
-            socket.addEventListener('open', function() {
+            socket.addEventListener('open', function () {
                 socket.send(JSON.stringify({
                     type: 'youtube',
                     youtube_url: youtubeUrl
                 }));
-                
+
                 addLog(`Đã gửi YouTube URL: ${youtubeUrl}`);
                 statusText.textContent = 'Trạng thái: Đang tải video từ YouTube...';
             });
         });
-        
+
         // Thiết lập ban đầu
-        window.addEventListener('load', function() {
+        window.addEventListener('load', function () {
             addLog('Trang đã tải xong. Chờ người dùng tải lên video...');
         });
     </script>
 </body>
+
 </html>

@@ -33,10 +33,22 @@ class VideoController:
     @staticmethod
     def get_videos(db: Session, user_id: uuid.UUID = None, skip: int = 0, limit: int = 100) -> List[Video]:
         """Lấy danh sách video của người dùng hoặc tất cả video"""
-        query = db.query(Video)
+        # Join với bảng User để lấy username
+        query = db.query(Video, User.username).join(User, Video.user_id == User.user_id, isouter=True)
         if user_id:
             query = query.filter(Video.user_id == user_id)
-        return query.order_by(desc(Video.created_at)).offset(skip).limit(limit).all()
+        
+        # Sắp xếp và phân trang
+        results = query.order_by(desc(Video.created_at)).offset(skip).limit(limit).all()
+        
+        # Gán username vào video object
+        videos = []
+        for video_tuple in results:
+            video, username = video_tuple
+            video.username = username
+            videos.append(video)
+            
+        return videos
     
     @staticmethod
     async def create_video_from_upload(

@@ -30,6 +30,7 @@ class VideoUpdate(BaseModel):
 class VideoInDBBase(VideoBase):
     video_id: uuid.UUID
     user_id: Optional[uuid.UUID] = None
+    username: Optional[str] = None
     original_video_url: str
     processed_video_url: Optional[str] = None
     status: StatusEnum

@@ -23,3 +23,4 @@ imageio-ffmpeg~=0.4.8
 yt_dlp==2025.4.30
 requests==2.31.0
 pydantic[email]
+pytz==2024.2

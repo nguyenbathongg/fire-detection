@@ -5,6 +5,7 @@ from sqlalchemy import Column, String, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
+from app.utils.datetime_utils import utcnow_vn
 
 
 class User(Base):
@@ -17,5 +18,5 @@ class User(Base):
     address = Column(String(255), nullable=True)
     phone_number = Column(String(20), nullable=True)
     role = Column(String(10), nullable=False, default="user")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow_vn)
+    updated_at = Column(DateTime, default=utcnow_vn, onupdate=utcnow_vn)

@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+from app.utils.datetime_utils import utcnow_vn
 
 
 class FireDetection(Base):
@@ -18,7 +19,7 @@ class FireDetection(Base):
     confidence = Column(Float, nullable=False)
     max_fire_frame = Column(Integer)
     max_fire_frame_image_path = Column(String(255))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow_vn)
     
     # Constraint
     __table_args__ = (

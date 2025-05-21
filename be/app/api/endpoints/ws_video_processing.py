@@ -27,6 +27,7 @@ from app.schemas.user import TokenPayload
 from app.models.video import Video
 from app.models.user_history import UserHistory
 from app.models.enums import VideoTypeEnum, StatusEnum
+from app.controllers.websocket_controller import WebSocketController
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -786,6 +787,32 @@ async def process_direct_video_websocket(websocket: WebSocket):
                                             await websocket.send_json({"status": "email", "message": f"Đã gửi email thông báo phát hiện lửa đến {user.email}"})
                                         except:
                                             pass
+                                            
+                                        # Chỉ tạo bản ghi thông báo nếu người dùng đã bật thông báo email hoặc web
+                                        if (notification_settings and 
+                                            (notification_settings.enable_email_notification or 
+                                             notification_settings.enable_website_notification)):
+                                            
+                                            # Cần lấy video_id từ video đã lưu
+                                            saved_video = db.query(Video).filter(
+                                                Video.user_id == user.user_id,
+                                                Video.original_video_url == cloudinary_url
+                                            ).first()
+                                            
+                                            video_id_for_notification = saved_video.video_id if saved_video else None
+                                            
+                                            notification = Notification(
+                                                notification_id=uuid.uuid4(),
+                                                user_id=user.user_id,
+                                                video_id=video_id_for_notification,
+                                                title="Phát hiện đám cháy trong video",
+                                                message=f"Hệ thống đã phát hiện đám cháy trong video của bạn với độ tin cậy {avg_confidence:.2%}.",
+                                                enable_email_notification=notification_settings.enable_email_notification,
+                                                enable_website_notification=notification_settings.enable_website_notification
+                                            )
+                                            db.add(notification)
+                                            db.commit()
+                                            logger.info(f"Đã tạo thông báo trong cơ sở dữ liệu cho user_id={user.user_id}, video_id={video_id_for_notification}")
                                     else:
                                         logger.error(f"Không thể gửi email thông báo đến {user.email}")
                                 else:
@@ -930,3 +957,13 @@ async def download_youtube_video(youtube_url: str, websocket: Optional[WebSocket
                 os.remove(temp_path)
             except:
                 pass
+@router.websocket("/ws/process/{video_id}")
+async def process_video_streaming(
+    websocket: WebSocket,
+    video_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    WebSocket endpoint để xử lý video và gửi tiến trình xử lý theo thời gian thực
+    """
+    await WebSocketController.process_video_by_id(websocket, video_id, db)

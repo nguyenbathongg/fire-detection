@@ -54,16 +54,16 @@ yarn-error.log*
 *.flv
 *.mkv
 *.webm
-*.jpg
-*.jpeg
-*.png
+# *.jpg
+# *.jpeg
+# *.png
 *.gif
 *.bmp
 temp/
 uploads/
 
 # Models (tập tin lớn)
-model/*.pt
+# model/*.pt
 model/*.onnx
 model/*.pth
 model/*.weights

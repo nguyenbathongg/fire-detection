@@ -17,6 +17,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Khởi tạo ứng dụng FastAPI
+# Trong mô hình MVC:
+# - Models: app/models/
+# - Views: app/views/ (hoặc app/api/endpoints/ trong FastAPI)
+# - Controllers: app/controllers/
 app = FastAPI(
     title="Hệ thống phát hiện đám cháy",
     description="API cho hệ thống phát hiện đám cháy từ video",

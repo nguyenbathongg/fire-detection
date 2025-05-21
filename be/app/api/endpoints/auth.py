@@ -1,18 +1,14 @@
-from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
-from app.core.security import create_access_token, get_password_hash, verify_password
 from app.db.base import get_db
 from app.api.deps import get_current_active_user
 from app.models import User
 from app.schemas import Token, UserCreate, User as UserSchema, PasswordChange, LoginRequest
-from app.models.enums import RoleEnum
-import uuid
+from app.controllers.auth_controller import AuthController
 
 router = APIRouter()
 
@@ -25,21 +21,7 @@ def login_access_token(
     Đăng nhập để lấy token access (dùng username field để nhập email)
     """
     # Sử dụng form_data.username là email thực tế
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email hoặc mật khẩu không chính xác",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": create_access_token(
-            str(user.user_id), user.role, expires_delta=access_token_expires
-        ),
-        "token_type": "bearer",
-    }
+    return AuthController.login(db=db, email=form_data.username, password=form_data.password)
 
 
 @router.post("/login-email", response_model=Token)
@@ -50,20 +32,7 @@ def login_with_email(
     """
     Đăng nhập bằng email và mật khẩu
     """
-    user = db.query(User).filter(User.email == login_data.email).first()
-    if not user or not verify_password(login_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email hoặc mật khẩu không chính xác",
-        )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": create_access_token(
-            str(user.user_id), user.role, expires_delta=access_token_expires
-        ),
-        "token_type": "bearer",
-    }
+    return AuthController.login(db=db, email=login_data.email, password=login_data.password)
 
 
 @router.post("/register", response_model=UserSchema)
@@ -75,26 +44,7 @@ def register_user(
     """
     Đăng ký người dùng mới
     """
-
-    # Kiểm tra email đã tồn tại chưa
-    if db.query(User).filter(User.email == user_in.email).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email đã tồn tại",
-        )
-    
-    # Tạo người dùng mới
-    user = User(
-        user_id=uuid.uuid4(),
-        username=user_in.username,
-        email=user_in.email,
-        password_hash=get_password_hash(user_in.password),
-        role="user",
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    return AuthController.register(db=db, user_in=user_in)
 
 
 @router.post("/change-password")
@@ -107,16 +57,13 @@ def change_password(
     """
     Đổi mật khẩu
     """
-    if not verify_password(password_change.current_password, current_user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Mật khẩu hiện tại không chính xác",
-        )
-    
-    current_user.password_hash = get_password_hash(password_change.new_password)
-    db.add(current_user)
-    db.commit()
-    return {"message": "Đổi mật khẩu thành công"} 
+    AuthController.change_password(
+        db=db, 
+        current_user=current_user, 
+        current_password=password_change.current_password, 
+        new_password=password_change.new_password
+    )
+    return {"message": "Đổi mật khẩu thành công"}
 
 
 @router.post("/verify-token", response_model=UserSchema)
@@ -127,25 +74,4 @@ def verify_token(
     """
     Xác thực token và trả về thông tin người dùng nếu token hợp lệ
     """
-    try:
-        from jose import jwt, JWTError
-        from app.schemas.user import TokenPayload
-        
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        token_data = TokenPayload(**payload)
-        
-        # Tìm người dùng trong database
-        user = db.query(User).filter(User.user_id == token_data.sub).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Người dùng không tồn tại"
-            )
-        
-        return user
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token không hợp lệ hoặc đã hết hạn",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    return AuthController.verify_token(db=db, token=token)

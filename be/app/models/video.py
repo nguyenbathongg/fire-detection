@@ -7,6 +7,7 @@ from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 from app.models.enums import VideoTypeEnum, StatusEnum
+from app.utils.datetime_utils import utcnow_vn
 
 
 class Video(Base):
@@ -23,8 +24,8 @@ class Video(Base):
     file_name = Column(String(255), nullable=True)  # Tên file video gốc hoặc tiêu đề YouTube
     cloudinary_public_id = Column(String(255), nullable=True)  # ID công khai của video gốc trên Cloudinary
     cloudinary_processed_id = Column(String(255), nullable=True)  # ID công khai của video đã xử lý trên Cloudinary
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow_vn)
+    updated_at = Column(DateTime, default=utcnow_vn, onupdate=utcnow_vn)
     
     # Relationships
     fire_detections = relationship("FireDetection", back_populates="video", cascade="all, delete-orphan")

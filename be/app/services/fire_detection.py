@@ -20,7 +20,9 @@ from app.core.config import settings
 from app.utils.cloudinary_service import upload_bytes_to_cloudinary, download_from_cloudinary, delete_from_cloudinary
 
 logger = logging.getLogger(__name__)
-
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "video_codec;h264_cuvid"
+os.environ["OPENCV_VIDEOIO_DEBUG"] = "0"  # Tắt debug messages
+cv2.setLogLevel(0)
 # Cache toàn cục cho các URL Cloudinary để tái sử dụng giữa các lần gọi
 # Sử dụng dict để lưu trữ URL và thông tin liên quan
 global_cloudinary_cache = {}

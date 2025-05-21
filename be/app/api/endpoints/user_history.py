@@ -1,14 +1,14 @@
 from typing import Any, List
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
 
 from app.db.base import get_db
 from app.api.deps import get_current_active_user, get_current_active_admin
-from app.models import User, UserHistory
+from app.models import User
 from app.schemas import UserHistory as UserHistorySchema
+from app.controllers.user_history_controller import UserHistoryController
 
 router = APIRouter()
 
@@ -23,19 +23,16 @@ async def read_user_history_me(
     """
     Lấy lịch sử hoạt động của người dùng hiện tại
     """
-    histories = db.query(UserHistory).filter(UserHistory.user_id == current_user.user_id) \
-        .order_by(desc(UserHistory.created_at)) \
-        .offset(skip).limit(limit).all()
+    # Lấy lịch sử người dùng
+    histories = UserHistoryController.get_user_history(
+        db=db, 
+        user_id=current_user.user_id, 
+        skip=skip, 
+        limit=limit
+    )
     
     # Thêm lịch sử cho việc xem lịch sử
-    history = UserHistory(
-        history_id=uuid.uuid4(),
-        user_id=current_user.user_id,
-        action_type="view_history",
-        description="Xem lịch sử hoạt động cá nhân"
-    )
-    db.add(history)
-    db.commit()
+    UserHistoryController.add_view_history(db=db, user_id=current_user.user_id)
     
     return histories
 
@@ -50,9 +47,7 @@ async def read_all_user_history(
     """
     Lấy tất cả lịch sử hoạt động (chỉ admin)
     """
-    histories = db.query(UserHistory).order_by(desc(UserHistory.created_at)) \
-        .offset(skip).limit(limit).all()
-    return histories
+    return UserHistoryController.get_all_histories(db=db, skip=skip, limit=limit)
 
 
 @router.get("/{user_id}", response_model=List[UserHistorySchema])
@@ -67,26 +62,12 @@ async def read_user_history(
     """
     Lấy lịch sử hoạt động của một người dùng cụ thể (chỉ admin)
     """
-    # Kiểm tra người dùng tồn tại
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy người dùng",
-        )
-    
-    histories = db.query(UserHistory).filter(UserHistory.user_id == user_id) \
-        .order_by(desc(UserHistory.created_at)) \
-        .offset(skip).limit(limit).all()
-    
-    # Thêm lịch sử
-    history = UserHistory(
-        history_id=uuid.uuid4(),
-        user_id=current_user.user_id,
-        action_type="view_user_history",
-        description=f"Xem lịch sử hoạt động của người dùng {user.username}"
+    # Thêm lịch sử xem lịch sử người dùng
+    UserHistoryController.add_view_user_history(
+        db=db, 
+        admin_id=current_user.user_id, 
+        target_user_id=user_id
     )
-    db.add(history)
-    db.commit()
     
-    return histories 
+    # Lấy lịch sử người dùng
+    return UserHistoryController.get_user_history(db=db, user_id=user_id, skip=skip, limit=limit) 

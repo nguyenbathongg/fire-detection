@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+from app.utils.datetime_utils import utcnow_vn
 
 
 class UserHistory(Base):
@@ -17,7 +18,7 @@ class UserHistory(Base):
     video_id = Column(UUID(as_uuid=True), ForeignKey("videos.video_id", ondelete="SET NULL"))
     notification_id = Column(UUID(as_uuid=True), ForeignKey("notifications.notification_id", ondelete="SET NULL"))
     description = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow_vn)
     
     # Relationships
     user = relationship("User")

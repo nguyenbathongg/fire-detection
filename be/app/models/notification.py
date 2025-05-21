@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
+from app.utils.datetime_utils import utcnow_vn
 
 
 class Notification(Base):
@@ -18,8 +19,8 @@ class Notification(Base):
     message = Column(Text, nullable=False)
     enable_email_notification = Column(Boolean, default=False)
     enable_website_notification = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow_vn)
+    updated_at = Column(DateTime, default=utcnow_vn, onupdate=utcnow_vn)
     
     # Relationships
     user = relationship("User")

@@ -13,7 +13,6 @@ const ResultDisplay = () => {
 
   // States
   const [currentFrame, setCurrentFrame] = useState(null);
-  const [frameHistory, setFrameHistory] = useState([]);
   const [isPlaying, setIsPlaying] = useState(true);
   const [firePercent, setFirePercent] = useState(0);
   const [backgroundPercent, setBackgroundPercent] = useState(100);
@@ -26,8 +25,16 @@ const ResultDisplay = () => {
   const [hasShownFireAlert, setHasShownFireAlert] = useState(false);
   const [processedVideoUrl, setProcessedVideoUrl] = useState(null);
   const [currentTime, setCurrentTime] = useState("--:--");
+  const [framesQueue, setFramesQueue] = useState([]);
+  const [frameProcessing, setFrameProcessing] = useState(false);
+  const [frameRate, setFrameRate] = useState(0);
 
+  // Refs
   const wsRef = useRef(null);
+  const lastFrameTimeRef = useRef(Date.now());
+  const frameCountRef = useRef(0);
+  const frameRateIntervalRef = useRef(null);
+
   const {
     mode,
     videoFile,
@@ -35,7 +42,6 @@ const ResultDisplay = () => {
     notificationEnabled = false,
   } = state || {};
 
- 
   // Kết nối WebSocket khi mode === 'video'
   useEffect(() => {
     if (mode !== "video") return;
@@ -44,6 +50,13 @@ const ResultDisplay = () => {
     // const wsUrl = "ws://localhost:8000/api/v1/ws/direct-process";
     const wsUrl = SummaryApi.directProcessWS;
     wsRef.current = new WebSocket(wsUrl);
+
+    // Đo frameRate
+    frameRateIntervalRef.current = setInterval(() => {
+      const fps = frameCountRef.current;
+      setFrameRate(fps);
+      frameCountRef.current = 0;
+    }, 1000);
 
     wsRef.current.onopen = () => {
       setStatus("Đã kết nối, đang xử lý...");
@@ -79,9 +92,12 @@ const ResultDisplay = () => {
 
     wsRef.current.onmessage = (event) => {
       if (event.data instanceof Blob) {
+        // Đếm số frame nhận được để tính FPS
+        frameCountRef.current++;
+
+        // Thêm frame mới vào queue
         const frameUrl = URL.createObjectURL(event.data);
-        setCurrentFrame(frameUrl);
-        setFrameHistory((prev) => [...prev, frameUrl]);
+        setFramesQueue(prev => [...prev, frameUrl]);
       } else {
         try {
           const data = JSON.parse(event.data);
@@ -98,10 +114,8 @@ const ResultDisplay = () => {
 
             if (frameInfo.fire_detected) {
               setFireDetectionTimes((prev) => [...prev, frameInfo.video_time]);
-              // if (notificationEnabled) setShowFireAlert(true);
             }
           } else if (data.status === "progress") {
-            // setProgressPercent(50 + Math.floor(data.frames_processed / 10));
             setProgressPercent(100);
           } else if (data.status === "completed") {
             setStatus("Xử lý hoàn thành");
@@ -132,9 +146,55 @@ const ResultDisplay = () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
-      frameHistory.forEach((url) => URL.revokeObjectURL(url));
+
+      // Dọn dẹp interval đo framerate
+      if (frameRateIntervalRef.current) {
+        clearInterval(frameRateIntervalRef.current);
+      }
+
+      // Dọn dẹp URL objects
+      if (currentFrame) {
+        URL.revokeObjectURL(currentFrame);
+      }
+
+      // Dọn dẹp queue
+      framesQueue.forEach(url => URL.revokeObjectURL(url));
     };
   }, [mode, videoFile, videoUrl, notificationEnabled]);
+
+  // Xử lý queue frames
+  useEffect(() => {
+    if (!isPlaying || framesQueue.length === 0 || frameProcessing) return;
+
+    // Đánh dấu đang xử lý để tránh xử lý nhiều frames cùng lúc
+    setFrameProcessing(true);
+
+    // Lấy frame tiếp theo từ queue
+    const nextFrame = framesQueue[0];
+    const remainingFrames = framesQueue.slice(1);
+
+    // Giải phóng frame cũ nếu có
+    if (currentFrame) {
+      URL.revokeObjectURL(currentFrame);
+    }
+
+    // Hiển thị frame mới
+    setCurrentFrame(nextFrame);
+    setFramesQueue(remainingFrames);
+
+    // Đánh dấu đã xử lý xong
+    setFrameProcessing(false);
+
+    // Nếu queue quá dài (>10 frames), giữ lại 10 frames gần nhất để tránh memory leak
+    if (remainingFrames.length > 10) {
+      const framesToKeep = remainingFrames.slice(-10);
+      const framesToRemove = remainingFrames.slice(0, -10);
+
+      // Giải phóng frames cũ
+      framesToRemove.forEach(url => URL.revokeObjectURL(url));
+      setFramesQueue(framesToKeep);
+    }
+  }, [isPlaying, framesQueue, frameProcessing, currentFrame]);
 
   // Các state bổ sung cho camera mode
   const [cameraStatus, setCameraStatus] = useState("disconnected");
@@ -153,6 +213,13 @@ const ResultDisplay = () => {
     const wsUrl = SummaryApi.fireCameraWS;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+
+    // Đo frameRate cho camera mode
+    frameRateIntervalRef.current = setInterval(() => {
+      const fps = frameCountRef.current;
+      setFrameRate(fps);
+      frameCountRef.current = 0;
+    }, 1000);
 
     ws.onopen = () => {
       console.log("Kết nối WebSocket thành công");
@@ -180,8 +247,10 @@ const ResultDisplay = () => {
           return;
         }
 
-        // Xử lý frame data
+        // Đếm frame để tính FPS
+        frameCountRef.current++;
 
+        // Xử lý frame data
         setFrameBase64(data.frame);
 
         setFirePercent(Number(data.total_area.toFixed(2)));
@@ -190,7 +259,6 @@ const ResultDisplay = () => {
         if (data.fire_detected) {
           console.log("Phát hiện cháy tại:", data.time);
           setFireDetectionTimes((prev) => [...prev, data.time]);
-          // if (notificationEnabled) setShowFireAlert(true);
         }
       } catch (error) {
         console.error("Lỗi phân tích dữ liệu:", error);
@@ -215,11 +283,15 @@ const ResultDisplay = () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
+
+      if (frameRateIntervalRef.current) {
+        clearInterval(frameRateIntervalRef.current);
+      }
     };
   }, [mode, notificationEnabled]);
 
 
-   useEffect(() => {
+  useEffect(() => {
     if (mode !== "camera") return;
 
     const interval = setInterval(() => {
@@ -282,87 +354,71 @@ const ResultDisplay = () => {
       return () => clearTimeout(timer);
     }
   }, [fireDetectionTimes, notificationEnabled, hasShownFireAlert]);
-  // Hiển thị frame tiếp theo để tạo hiệu ứng video mượt
-  useEffect(() => {
-    if (!isPlaying || frameHistory.length <= 1) return;
-
-    const interval = setInterval(() => {
-      setFrameHistory((prev) => {
-        if (prev.length > 1) {
-          setCurrentFrame(prev[1]);
-          return prev.slice(1);
-        }
-        return prev;
-      });
-    }, 100); // ~10fps
-
-    return () => clearInterval(interval);
-  }, [isPlaying, frameHistory.length]);
-
 
   const handleTurnOnCamera = () => {
-  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
 
-  setCameraStatus("connecting");
-  setIsCameraStarting(true);
+    setCameraStatus("connecting");
+    setIsCameraStarting(true);
 
-  const wsUrl =
-    process.env.REACT_APP_WS_URL || "ws://localhost:8000/api/v1/ws/fire";
-  const ws = new WebSocket(wsUrl);
-  wsRef.current = ws;
+    const wsUrl =
+      process.env.REACT_APP_WS_URL || "ws://localhost:8000/api/v1/ws/fire";
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
-  ws.onopen = () => {
-    console.log("Bật lại WebSocket thành công");
-    setCameraStatus("connected");
-    setCameraOn(true);
-    setIsCameraStarting(false);
-  };
+    ws.onopen = () => {
+      console.log("Bật lại WebSocket thành công");
+      setCameraStatus("connected");
+      setCameraOn(true);
+      setIsCameraStarting(false);
+    };
 
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
 
-      if (data.status === "ready") {
-        console.log("Camera đã sẵn sàng");
-        setCameraStatus("connected");
-        setCameraOn(true);
-        setIsCameraStarting(false);
-      } else if (data.status === "error") {
-        console.error("Lỗi camera:", data.message);
-        setCameraStatus("error");
-        setCameraOn(false);
-        setIsCameraStarting(false);
-      }
-
-      if (data.frame) {
-        setFrameBase64(data.frame);
-        setFirePercent(Number(data.total_area.toFixed(2)));
-        setBackgroundPercent(Number((100 - data.total_area).toFixed(2)));
-
-        if (data.fire_detected) {
-          console.log("Phát hiện cháy tại:", data.time);
-          setFireDetectionTimes((prev) => [...prev, data.time]);
+        if (data.status === "ready") {
+          console.log("Camera đã sẵn sàng");
+          setCameraStatus("connected");
+          setCameraOn(true);
+          setIsCameraStarting(false);
+        } else if (data.status === "error") {
+          console.error("Lỗi camera:", data.message);
+          setCameraStatus("error");
+          setCameraOn(false);
+          setIsCameraStarting(false);
         }
+
+        if (data.frame) {
+          frameCountRef.current++;
+          setFrameBase64(data.frame);
+          setFirePercent(Number(data.total_area.toFixed(2)));
+          setBackgroundPercent(Number((100 - data.total_area).toFixed(2)));
+
+          if (data.fire_detected) {
+            console.log("Phát hiện cháy tại:", data.time);
+            setFireDetectionTimes((prev) => [...prev, data.time]);
+          }
+        }
+      } catch (error) {
+        console.error("Lỗi phân tích dữ liệu:", error);
       }
-    } catch (error) {
-      console.error("Lỗi phân tích dữ liệu:", error);
-    }
-  };
+    };
 
-  ws.onerror = (error) => {
-    console.error("Lỗi WebSocket:", error);
-    setCameraStatus("error");
-    setCameraOn(false);
-    setIsCameraStarting(false);
-  };
+    ws.onerror = (error) => {
+      console.error("Lỗi WebSocket:", error);
+      setCameraStatus("error");
+      setCameraOn(false);
+      setIsCameraStarting(false);
+    };
 
-  ws.onclose = () => {
-    console.log("WebSocket đã đóng");
-    setCameraStatus("disconnected");
-    setCameraOn(false);
-    setIsCameraStarting(false);
+    ws.onclose = () => {
+      console.log("WebSocket đã đóng");
+      setCameraStatus("disconnected");
+      setCameraOn(false);
+      setIsCameraStarting(false);
+    };
   };
-};
 
   const handlePlayPause = () => setIsPlaying((prev) => !prev);
 
@@ -402,7 +458,7 @@ const ResultDisplay = () => {
               alt="Camera Frame"
               style={{ width: "100%", height: "62vh", objectFit: "cover" }}
             />
-          ) :isCameraStarting ? (
+          ) : isCameraStarting ? (
             <div
               className="loading-placeholder"
               style={{
@@ -499,6 +555,8 @@ const ResultDisplay = () => {
             </div>
             <span className="progress-percent">{backgroundPercent}%</span>
           </div>
+
+
         </div>
 
         <div className="right-column">
@@ -514,13 +572,13 @@ const ResultDisplay = () => {
           <div className="turnoff-button">
             {mode === "camera" && (
               <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <button className="new-button" onClick={handleTurnOffCamera} disabled={!cameraOn}>
-                Tắt 
-              </button>
-              <button className="new-button" onClick={handleTurnOnCamera} disabled={cameraOn}>
-                Bật 
-              </button>
-            </div>
+                <button className="new-button" onClick={handleTurnOffCamera} disabled={!cameraOn}>
+                  Tắt
+                </button>
+                <button className="new-button" onClick={handleTurnOnCamera} disabled={cameraOn}>
+                  Bật
+                </button>
+              </div>
             )}
 
             <button className="new-button" onClick={handleCreateNew}>

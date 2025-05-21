@@ -161,6 +161,10 @@ def predict_and_display(model, video_path, output_path=None, initial_skip_frames
                         overlay[mask_resized > 0.5] = blue_mask[mask_resized > 0.5]
                         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
                 
+                        fire_pixels = np.sum(mask_resized > 0.5)
+                        fire_area = fire_pixels / (width * height) * 100
+                        total_fire_area += fire_area
+                        
                 # Cập nhật cache mask
                 new_mask_cache = {}
                 for mask_resized, mask_hash in current_masks:
@@ -213,8 +217,8 @@ def predict_and_display(model, video_path, output_path=None, initial_skip_frames
                         cv2.rectangle(frame, (x1, y1 - text_height - 8), (x1 + text_width + 6, y1), box_color, -1)
                         cv2.putText(frame, label, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
                         
-                        area = ((x2 - x1) * (y2 - y1)) / (width * height) * 100
-                        total_fire_area += area
+                        # area = ((x2 - x1) * (y2 - y1)) / (width * height) * 100
+                        # total_fire_area += area
                         fire_detected = True
 
                 # Tính FPS

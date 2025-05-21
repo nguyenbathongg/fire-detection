@@ -4,24 +4,24 @@
   max-width: 76%;
   margin: 1% 12% 1% 12%;
   height: 100vh;
-  
+
 }
 
 .video-result-frame {
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
   border: 10px solid #C4D9FF;
-   /* border: 10px solid #FF9965; */
+  /* border: 10px solid #FF9965; */
   height: 65vh;
   background-color: #000000;
-  
+
 }
 
 .video-player {
   width: 76%;
   object-fit: fill;
 
-  
+
 }
 
 .camera-result-video {
@@ -30,139 +30,157 @@
   background-color: #000000;
 }
 
- .stats-bar {
-    /* background: #a6c8e0; */
-    background-color: #70A6D2;
-    padding: 0.5rem;
-    border-bottom-right-radius: 10px;
-    border-bottom-left-radius: 10px;
-    color: #fff;
-    display: flex;
-    justify-content: space-between; 
+.stats-bar {
+  /* background: #a6c8e0; */
+  background-color: #70A6D2;
+  padding: 0.5rem;
+  border-bottom-right-radius: 10px;
+  border-bottom-left-radius: 10px;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
 }
 
 .left-column {
-  flex: 1; 
-  margin-right: 2rem; 
+  flex: 1;
+  margin-right: 2rem;
 }
 
 .right-column {
-  flex: 0 0 37%; 
+  flex: 0 0 37%;
   display: flex;
-  flex-direction: column; 
-  justify-content: space-between; 
-  
+  flex-direction: column;
+  justify-content: space-between;
+
 }
 
 .progress-text {
-    font-family: Montserrat;
-    font-weight: 700;
-    font-size: 0.85rem;
-    line-height: 100%;
-    letter-spacing: 0%;
-    vertical-align: middle;
-    color: #FFFFFF;
-    margin-bottom: 0.625rem; 
+  font-family: Montserrat;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 100%;
+  letter-spacing: 0%;
+  vertical-align: middle;
+  color: #FFFFFF;
+  margin-bottom: 0.625rem;
 
 }
 
 .progress-container {
   display: flex;
   gap: 1rem;
-  align-items: center; 
+  align-items: center;
   border-radius: 5px;
-  height: 0.625rem; 
+  height: 0.625rem;
   position: relative;
-  margin: 0.625rem 0rem 0.625rem 0rem; 
+  margin: 0.625rem 0rem 0.625rem 0rem;
   padding-right: 0.5rem;
 }
 
 .progress-bar-wrapper {
   flex: 1;
   background-color: #D9D9D9;
-  height: 100%; 
+  height: 100%;
   border-radius: 10px;
   overflow: hidden;
 }
 
 .progress-fire {
   background-color: red;
-  height: 100%; 
-  border-radius: 5px; 
+  height: 100%;
+  border-radius: 5px;
 }
 
 .progress-bg {
-  background-color: #00ff00; 
-  height: 100%; 
-  border-radius: 5px; 
-  
+  background-color: #00ff00;
+  height: 100%;
+  border-radius: 5px;
+
 }
 
 .progress-percent {
-    font-family: Montserrat;
-    font-weight: 700;
-    font-size: 0.85rem;
-    line-height: 100%;
-    letter-spacing: 0%;
-    vertical-align: middle;
-    color: #FFFFFF;
-    margin-bottom: 0.625rem; 
-    text-align: right;
-    width: 2%;
+  font-family: Montserrat;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 100%;
+  letter-spacing: 0%;
+  vertical-align: middle;
+  color: #FFFFFF;
+  margin-bottom: 0.625rem;
+  text-align: right;
+  width: 2%;
 }
 
+.framerate-info {
+  display: flex;
+  justify-content: space-between;
+  font-family: Montserrat;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: #FFFFFF;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin-top: 8px;
+}
+
+.framerate-info span {
+  display: inline-block;
+  margin-right: 10px;
+}
 
 .detection-time {
-    font-family: Montserrat;
-    display: flex;
-    justify-content: flex-end;
-    font-weight: 700;
-    font-size: 0.85rem;
-    line-height: 100%;
-    letter-spacing: 0%;
-    vertical-align: middle;
-    color: #FFFFFF;
-    margin-bottom: 0.625rem; 
+  font-family: Montserrat;
+  display: flex;
+  justify-content: flex-end;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 100%;
+  letter-spacing: 0%;
+  vertical-align: middle;
+  color: #FFFFFF;
+  margin-bottom: 0.625rem;
 }
 
 .new-button {
-  background-color: #5AB2FF; 
-  color: #ffffff; 
-  padding: 0.75rem 0.75rem; 
-  border: none; 
-  border-radius: 5px; 
-  cursor: pointer; 
-  transition: background-color 0.3s; 
+  background-color: #5AB2FF;
+  color: #ffffff;
+  padding: 0.75rem 0.75rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
   align-self: flex-end;
   font-family: Montserrat;
-    font-weight: 510;
-    font-size: 0.85rem;
-    line-height: 100%;
-    text-align: center;
-    vertical-align: middle;
+  font-weight: 510;
+  font-size: 0.85rem;
+  line-height: 100%;
+  text-align: center;
+  vertical-align: middle;
 
 }
 
-.new-button:hover, .new-review-button {
-  background-color: #0073e6; 
+.new-button:hover,
+.new-review-button {
+  background-color: #0073e6;
 }
 
 .new-review-button {
-  background-color: #5AB2FF; 
-  color: #ffffff; 
-  padding: 0.5rem 0.5rem; 
-  border: none; 
-  border-radius: 5px; 
-  cursor: pointer; 
-  transition: background-color 0.3s; 
+  background-color: #5AB2FF;
+  color: #ffffff;
+  padding: 0.5rem 0.5rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
   justify-content: center;
   font-family: Montserrat;
-    font-weight: 510;
-    font-size: 0.85rem;
-    text-align: center;
+  font-weight: 510;
+  font-size: 0.85rem;
+  text-align: center;
   margin-top: 1rem;
-  display: block; 
-   margin: 1rem auto;
+  display: block;
+  margin: 1rem auto;
 }
 
 
@@ -172,7 +190,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); 
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -204,13 +222,13 @@
 
 .custom-control-progress {
   width: 100%;
-   background-color: #E0F7FA;
-   height: 0.5rem;
+  background-color: #E0F7FA;
+  height: 0.5rem;
   display: flex !important;
   flex-direction: row;
   /* justify-content: space-between; */
   text-align: center;
-  padding: 0rem 0.5rem ;
+  padding: 0rem 0.5rem;
   align-items: center !important;
   position: relative !important;
 }
@@ -243,9 +261,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
   }
+
   50% {
     box-shadow: 0 0 16px rgba(0, 0, 0, 0.8);
   }
@@ -281,7 +302,7 @@
 }
 
 .loading-placeholders {
-   align-items: center;
+  align-items: center;
   color: #ffffff;
   font-size: 0.9rem;
   font-weight: 600;
@@ -290,8 +311,8 @@
 
 /* Spinner */
 .spinner {
-  border: 6px solid #f3f3f3; 
-  border-top: 6px solid #3498db; 
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #3498db;
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -300,6 +321,11 @@
 
 /* Animation */
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }

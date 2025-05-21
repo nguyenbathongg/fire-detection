@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=Token)
-def login_access_token(
+async def login_access_token(
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
@@ -25,7 +25,7 @@ def login_access_token(
 
 
 @router.post("/login-email", response_model=Token)
-def login_with_email(
+async def login_with_email(
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ) -> Any:
@@ -36,7 +36,7 @@ def login_with_email(
 
 
 @router.post("/register", response_model=UserSchema)
-def register_user(
+async def register_user(
     *,
     db: Session = Depends(get_db),
     user_in: UserCreate,
@@ -48,7 +48,7 @@ def register_user(
 
 
 @router.post("/change-password")
-def change_password(
+async def change_password(
     *,
     db: Session = Depends(get_db),
     password_change: PasswordChange,
@@ -67,7 +67,7 @@ def change_password(
 
 
 @router.post("/verify-token", response_model=UserSchema)
-def verify_token(
+async def verify_token(
     token: str,
     db: Session = Depends(get_db)
 ) -> Any:

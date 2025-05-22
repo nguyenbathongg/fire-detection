@@ -42,7 +42,7 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytic
    pip install -r requirements.txt
    
    # Cài đặt yt-dlp (cần thiết cho tải video YouTube)
-   pip install yt-dlp
+   python -m install_ytdlp.py
    ```
 
 3. Tạo file `.env` từ file mẫu `.env.example`:
@@ -70,7 +70,7 @@ Hệ thống phát hiện đám cháy từ video sử dụng YOLOv11 (UltraLytic
 7. Tạo tài khoản admin:
    ```
    # Chạy script tạo tài khoản admin
-   python -m app.utils.create_admin
+   python -m create_admin.py
    ```
    Nhập thông tin theo yêu cầu (email, mật khẩu) để tạo tài khoản admin.
 

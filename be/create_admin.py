@@ -32,14 +32,8 @@ def create_admin_user(username, email, password):
     print(f"Kết nối đến database: {database_url}")
     
     try:
-        # Kết nối trực tiếp đến PostgreSQL
-        conn = psycopg2.connect(
-            database="fire-detection",
-            user="postgres",
-            password="1",
-            host="localhost",
-            port="5432"
-        )
+        # Kết nối đến PostgreSQL sử dụng DATABASE_URL
+        conn = psycopg2.connect(database_url)
         
         # Tạo cursor
         cursor = conn.cursor()

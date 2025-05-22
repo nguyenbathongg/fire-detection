@@ -8,6 +8,7 @@
   text-align: center;
   display: flex;
   margin-bottom: 0.5rem;
+  font-size: 1rem;
 }
 
 .history-card :where(.css-dev-only-do-not-override-18afz5u).ant-card .ant-card-body {

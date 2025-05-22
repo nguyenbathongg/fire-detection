@@ -53,3 +53,79 @@ body {
   margin-bottom: 1rem;
 }
 
+.donut-chart {
+      width: 100%;
+      height: 40vh;
+      display: "flex";
+      justify-content: center;
+      align-items:  center;
+}
+
+
+/* Màn hình nhỏ hơn hoặc bằng 414px (điện thoại) */
+@media (max-width: 414px) {
+  .dashboard-container {
+    padding: 5% 3%;
+  }
+
+  .dashboard-card {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .chart-card {
+    padding: 0.5rem;
+  }
+
+  .chart-title {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+
+    .donut-chart {
+      width: 100%;
+      height: 18vh;
+      display: "flex";
+      justify-content: center;
+      align-items:  center;
+}
+}
+
+/* Màn hình nhỏ hơn hoặc bằng 768px (máy tính bảng) */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 5% 5%;
+  }
+
+  .donut-chart {
+      width: 100%;
+      height: 20vh;
+      display: "flex";
+      justify-content: center;
+      align-items:  center;
+}
+
+  .dashboard-card {
+    border-radius: 14px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07);
+  }
+
+  .chart-card {
+    padding: 0.75rem;
+  }
+
+  .chart-title {
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+@media (max-width: 1024px) {
+.donut-chart {
+      width: 100%;
+      height: 25vh;
+      display: "flex";
+      justify-content: center;
+      align-items:  center;
+}
+}

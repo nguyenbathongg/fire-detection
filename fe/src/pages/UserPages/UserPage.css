@@ -66,3 +66,27 @@
 :where(.css-dev-only-do-not-override-18afz5u).ant-tabs .ant-tabs-ink-bar {
   background-color: #328F6F !important;
 }
+
+
+/* Màn hình nhỏ hơn hoặc bằng 414px (điện thoại) */
+@media (max-width: 414px) {
+:where(.css-dev-only-do-not-override-18afz5u).ant-btn.ant-btn-icon-only {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+}
+}
+
+/* Màn hình nhỏ hơn hoặc bằng 768px (máy tính bảng) */
+@media (max-width: 768px) {
+  :where(.css-dev-only-do-not-override-18afz5u).ant-btn.ant-btn-icon-only {
+  width: 1.6rem !important;
+  height: 1.6rem !important;
+}
+}
+
+@media (max-width: 1024px) {
+  :where(.css-dev-only-do-not-override-18afz5u).ant-btn.ant-btn-icon-only {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+}
+}

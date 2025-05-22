@@ -1,4 +1,5 @@
-export const baseURL = process.env.REACT_APP_BASE_API || "http://localhost:8000";
+export const baseURL =
+  process.env.REACT_APP_BASE_API || "http://localhost:8000";
 
 const SummaryApi = {
   login: {
@@ -38,6 +39,10 @@ const SummaryApi = {
   getVideoDetail: (video_id) => ({
     url: `/api/v1/videos/${video_id}`,
     method: "get",
+  }),
+  getUserById: (userId) => ({ 
+    url: `/api/v1/users/${userId}`, 
+    method: "get" 
   }),
   changePassword: {
     url: "/api/v1/auth/change-password",

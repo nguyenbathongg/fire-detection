@@ -19,41 +19,106 @@ logger = logging.getLogger(__name__)
 def download_youtube_video_file(url: str, output_path: str = 'video.mp4') -> str:
     """
     Tải video từ YouTube về máy tính.
-    Ưu tiên định dạng mp4 progressive (22/18), tiếp theo best[ext=mp4], cuối cùng là best.
+    Ưu tiên định dạng mp4 progressive 18 (360p), sau đó thử best[ext=mp4], cuối cùng là best.
     :param url: Đường dẫn URL của video YouTube cần tải.
     :param output_path: Đường dẫn và tên file video tải về. Mặc định là 'video.mp4'.
     :return: Đường dẫn tới file video tải về.
     """
     import yt_dlp
+    
+    # Xóa file cũ nếu tồn tại để tránh thông báo "file đã tải về"
+    if os.path.exists(output_path):
+        try:
+            os.remove(output_path)
+            logger.debug(f"Xóa file cũ {output_path} trước khi tải")
+        except Exception as e:
+            logger.warning(f"Không thể xóa file cũ: {e}")
+    
+    # Chỉ dùng định dạng 18 (360p) và các định dạng dự phòng
     formats_to_try = [
-        '22',              # mp4 720p progressive
-        '18',              # mp4 360p progressive
-        'best[ext=mp4]',  # mp4 tốt nhất (có thể là DASH)
+        '18',              # mp4 360p progressive (YouTube Shorts luôn có định dạng này)
+        'best[ext=mp4]',   # mp4 tốt nhất (có thể là DASH)
         'best'             # bất kỳ định dạng tốt nhất
     ]
     last_error = None
-    for fmt in formats_to_try:
+    
+    # Kiểm tra nếu là YouTube Shorts
+    is_shorts = 'shorts' in url.lower()
+    logger.debug(f"Đang tải video {'YouTube Shorts' if is_shorts else 'YouTube thường'} từ URL: {url}")
+    
+    # Nếu là YouTube Shorts, chỉ thử định dạng 18 trước
+    if is_shorts:
+        logger.info("Đây là YouTube Shorts, chỉ thử định dạng 18 (360p)")
+        
+        # Thử tải với định dạng '18' (Chỉ dùng định dạng này cho Shorts)
+        fmt = '18'
+        
         ydl_opts = {
             'format': fmt,
             'outtmpl': output_path,
             'quiet': False,
-            'noplaylist': True
+            'noplaylist': True,
+            'overwrites': True  # Ghi đè file nếu tồn tại
         }
+        
         try:
+            logger.debug(f"Tải YouTube Shorts với định dạng {fmt}")
+            
+            # Tải video
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+                info_dict = ydl.extract_info(url, download=True)
+                actual_format = info_dict.get('format_id', fmt) if info_dict else fmt
+                logger.debug(f"Thông tin từ yt-dlp: format_id = {actual_format}")
+            
+            # Kiểm tra file đã tải
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                logger.info(f"Video đã được tải về: {output_path} (format: {fmt})")
+                file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                logger.info(f"### THÀNH CÔNG: Video Shorts tải về với định dạng {actual_format}, kích thước: {file_size_mb:.2f} MB ###")
                 return output_path
         except Exception as e:
             last_error = str(e)
-            logger.warning(f"Không tải được video với format {fmt}: {e}")
-        # Nếu file tồn tại nhưng rỗng thì xoá đi để thử format tiếp theo
-        if os.path.exists(output_path) and os.path.getsize(output_path) == 0:
+            logger.error(f"Không thể tải YouTube Shorts với định dạng {fmt}: {e}")
+            # Nếu là Shorts nhưng không tải được định dạng 18, thử các định dạng khác
+    
+    # Nếu không phải Shorts hoặc Shorts thất bại, thử lần lượt các định dạng
+    logger.debug(f"Thử tải video YouTube với các định dạng theo thứ tự: {formats_to_try}")
+    
+    for i, fmt in enumerate(formats_to_try):
+        # Đảm bảo file cũ đã bị xóa để tránh thông báo "đã tải rồi"
+        if os.path.exists(output_path):
             try:
                 os.remove(output_path)
+                logger.debug(f"Xóa file để chuẩn bị cho lần thử mới")
             except Exception:
                 pass
+        
+        ydl_opts = {
+            'format': fmt,
+            'outtmpl': output_path,
+            'quiet': False,
+            'noplaylist': True,
+            'overwrites': True  # Ghi đè file nếu tồn tại
+        }
+        
+        try:
+            logger.debug(f"Lần thử {i+1}: Đang thử tải với định dạng {fmt}")
+            
+            # Tải video
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info_dict = ydl.extract_info(url, download=True)
+                actual_format = info_dict.get('format_id', fmt) if info_dict else fmt
+                logger.debug(f"Thông tin từ yt-dlp: format_id = {actual_format}")
+            
+            # Kiểm tra file có tồn tại và không rỗng
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                logger.info(f"### THÀNH CÔNG: Video tải về với định dạng YEU CẦU={fmt}, FORMAT THỰC TẾ={actual_format}, kích thước: {file_size_mb:.2f} MB ###")
+                return output_path
+        except Exception as e:
+            last_error = str(e)
+            logger.warning(f"Lần thử {i+1}: Không tải được video với định dạng {fmt}: {e}")
+    
+    logger.error(f"Tất cả các định dạng đều thất bại")
     raise RuntimeError(f"Không thể tải video từ YouTube (không tìm được định dạng mp4 phù hợp hoặc file rỗng). Lỗi cuối: {last_error}")
 
 

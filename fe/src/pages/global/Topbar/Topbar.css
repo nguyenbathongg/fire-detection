@@ -85,6 +85,8 @@
     :where(.css-dev-only-do-not-override-18afz5u).ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-title-content,
     :where(.css-dev-only-do-not-override-18afz5u).ant-btn-variant-outlined {
          font-family: Montserrat;
+         font-size: 0.9rem;
     }
 
     
+

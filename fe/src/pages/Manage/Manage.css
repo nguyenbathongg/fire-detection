@@ -77,6 +77,9 @@
   padding-bottom: 1.2rem;
 }
 
+.buttonicon-upload {
+  padding-left: 0.6rem;
+}
 .ant-table-wrapper .ant-table-thead > tr > th {
   /* background-color: #e6f7ef !important; */
    background-color: #e6f7ef !important;

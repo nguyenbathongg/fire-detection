@@ -48,3 +48,45 @@
 
 
 
+/* Tablet (≤768px) */
+@media (max-width: 768px) {
+  .modal-title {
+    font-size: 1.15rem;
+    text-align: center;
+  }
+
+  .save .ant-btn-primary {
+    width: 100%;
+    height: 2.25rem;
+    font-size: 0.95rem;
+  }
+
+  .ant-form-item-label > label,
+  .ant-input {
+    font-size: 0.95rem;
+  }
+}
+
+
+@media (max-width: 414px) {
+  .modal-title {
+    font-size: 1.35rem;
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  :where(.css-dev-only-do-not-override-18afz5u).ant-form-vertical .ant-form-item:not(.ant-form-item-horizontal) .ant-form-item-label >label {
+    font-size: 0.9rem;
+  }
+
+  .save .ant-btn-primary {
+    width: 100%;
+    height: 2.1rem;
+    font-size: 0.9rem;
+  }
+
+  .ant-form-item-label > label,
+  .ant-input {
+    font-size: 0.9rem;
+  }
+}

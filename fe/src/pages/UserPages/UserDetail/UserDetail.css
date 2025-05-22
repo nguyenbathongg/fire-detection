@@ -15,3 +15,11 @@
    font-family: Montserrat;
     font-size: 0.875rem;
 }
+.ant-table-cell {
+  white-space: normal !important; /* Cho phép xuống dòng */
+  word-break: break-word;         /* Nếu là chuỗi dài thì bẻ từ */
+}
+
+:where(.css-dev-only-do-not-override-18afz5u).ant-table-wrapper .ant-table-cell, :where(.css-dev-only-do-not-override-18afz5u).ant-table-wrapper .ant-table-thead>tr>th {
+  padding: 0.2rem 0.1rem !important;
+}

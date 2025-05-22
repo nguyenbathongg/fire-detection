@@ -175,8 +175,10 @@ const Account = () => {
       key: "time",
       render: (text) => {
         const date = new Date(text);
+        // date.setHours(date.getHours() + 7);
         return (
           <div style={{ textAlign: "center" }}>
+
             {date.toLocaleTimeString("vi-VN")}
           </div>
         );
@@ -273,17 +275,17 @@ const Account = () => {
 
           <div className="account-details">
             <p>
-              <strong>Email:</strong> {user.email}
+              <strong>Email:</strong>&nbsp;{user.email}
             </p>
             <p>
-              <strong>SĐT:</strong> {user.phone}
+              <strong>SĐT:</strong>&nbsp;{user.phone}
             </p>
             <p>
-              <strong>Địa chỉ:</strong> {user.address}
+              <strong>Địa chỉ:</strong> &nbsp;{user.address}
             </p>
             {user.role === "admin" && (
               <p>
-                <strong>Vai trò:</strong> {user.role}
+                <strong>Vai trò:</strong> &nbsp;{user.role}
               </p>
             )}
           </div>
@@ -324,7 +326,7 @@ const Account = () => {
             {videos.length > 0 ? (
               videos.map((video, index) => {
                 const date = new Date(video.created_at);
-                date.setHours(date.getHours() + 7);
+                // date.setHours(date.getHours() + 7);
 
                 const formattedDate = date.toLocaleDateString("vi-VN");
                 const formattedTime = date.toLocaleTimeString("vi-VN", {
@@ -460,6 +462,8 @@ const Account = () => {
               total={allVideos.length}
               onChange={(newPage) => setPage(newPage)}
               showSizeChanger={false}
+              showLessItems={true}
+
             />
           </div>
 
@@ -539,8 +543,10 @@ const Account = () => {
                 total,
                 onChange: (page) => setPage(page),
                 showSizeChanger: false,
+                 showLessItems:true,
               }}
               bordered
+              //  scroll={{ x: "max-content" }}
             />
           )}
         </div>

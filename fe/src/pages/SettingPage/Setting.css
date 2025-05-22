@@ -75,7 +75,7 @@
   align-items: center;      
   
 
-  width: 37%;
+  /* width: 37%; */
 }
 
 .volume-control {
@@ -123,4 +123,18 @@
 
 .css-1i1qfg1-MuiButtonBase-root-MuiMenuItem-root  {
   font-size: 0.9rem !important;
+}
+@media (max-width: 768px) {
+  .css-1toxriw-MuiList-root-MuiMenu-list {
+    padding: 0rem !important;
+  }
+ 
+}
+
+@media (max-width: 414px) {
+     .css-1toxriw-MuiList-root-MuiMenu-list {
+    padding: 0rem !important;
+  }
+ 
+
 }

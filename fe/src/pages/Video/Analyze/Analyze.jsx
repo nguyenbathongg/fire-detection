@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from "react"; 
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { baseURL } from "../../../api/api";
@@ -22,7 +22,7 @@ const Analyze = () => {
   useEffect(() => {
     const fetchNotificationSettings = async () => {
       try {
-         const res = await fetch(baseURL + SummaryApi.notificationSettings.url, {
+        const res = await fetch(baseURL + SummaryApi.notificationSettings.url, {
           headers: {
             accept: "application/json",
             Authorization: `Bearer ${localStorage.getItem("access_token")}`,
@@ -81,34 +81,34 @@ const Analyze = () => {
   };
 
   const handleAnalyze = () => {
-  setErrorMsg(null);
+    setErrorMsg(null);
 
-  // Nếu mode là camera thì đi thẳng
-  if (mode === "camera") {
-    navigate("/video/cameraresult", { state: { mode } });
-    return;
-  }
-
-  // Kiểm tra input
-  if (!selectedFile && !youtubeUrl) {
-    setErrorMsg("Chưa chọn video hoặc nhập link YouTube.");
-    return;
-  }
-
-  if (selectedFile && selectedFile.size > 15 * 1024 * 1024) {
-    setErrorMsg("File quá lớn! Kích thước tối đa 15MB.");
-    return;
-  }
-
- navigate("/video/detectionresult", {
-    state: {
-      mode: "video",
-      videoFile: selectedFile,
-      videoUrl: youtubeUrl,
-      notificationEnabled
+    // Nếu mode là camera thì đi thẳng
+    if (mode === "camera") {
+      navigate("/video/cameraresult", { state: { mode } });
+      return;
     }
-  });
-};
+
+    // Kiểm tra input
+    if (!selectedFile && !youtubeUrl) {
+      setErrorMsg("Chưa chọn video hoặc nhập link YouTube.");
+      return;
+    }
+
+    if (selectedFile && selectedFile.size > 15 * 1024 * 1024) {
+      setErrorMsg("File quá lớn! Kích thước tối đa 15MB.");
+      return;
+    }
+
+    navigate("/video/detectionresult", {
+      state: {
+        mode: "video",
+        videoFile: selectedFile,
+        videoUrl: youtubeUrl,
+        notificationEnabled
+      }
+    });
+  };
 
 
   return (

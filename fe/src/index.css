@@ -145,15 +145,15 @@ body,
 }
 
 /* Điện thoại rất nhỏ (iPhone SE, Galaxy Mini, v.v.) */
-@media (min-width: 321px) and (max-width: 375px) {
+@media (min-width: 321px) and (max-width: 414px) {
   html {
-    font-size: 10px;
+    font-size: 9px;
   }
 }
 
 /* Thiết bị cực nhỏ */
 @media (max-width: 320px) {
   html {
-    font-size: 9px;
+    font-size: 7px;
   }
 }

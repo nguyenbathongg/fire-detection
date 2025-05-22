@@ -28,12 +28,16 @@ ChartJS.register(
   LineElement
 );
 
+const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
+
+const fontSizeRem = 0.7; // 0.75rem
+const fontSizeCenterRem = 1.5;
 const centerTextPlugin = {
   id: "centerTextPlugin",
   beforeDraw: (chart) => {
     const { ctx, chartArea } = chart;
     const fireCount = chart.data.datasets[0].data[1];
-    const fontSize = 20;
+    const fontSize = fontSizeCenterRem * rootFontSize;
     const fontFamily = "'Montserrat', sans-serif";
 
     ctx.save();
@@ -67,7 +71,7 @@ const Dashboard = () => {
             },
             params: {
               skip: 0,
-              limit: 100,
+              limit: 1000,
             },
           }),
           axios({
@@ -75,6 +79,10 @@ const Dashboard = () => {
             url: `${baseURL}${SummaryApi.fetchAllVideos.url}`,
             headers: {
               Authorization: `Bearer ${token}`,
+            },
+             params: {
+              skip: 0,
+              limit: 1000,
             },
           }),
         ]);
@@ -102,6 +110,8 @@ const Dashboard = () => {
     ],
   };
 
+  
+
   const pieOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -113,7 +123,7 @@ const Dashboard = () => {
         labels: {
           font: {
             family: "Montserrat",
-            size: 12,
+            size: fontSizeRem * rootFontSize, 
             weight: "bold",
           },
           usePointStyle: true,
@@ -136,15 +146,23 @@ const Dashboard = () => {
     );
   };
 
-  const isThisWeek = (dateStr) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const firstDayOfWeek = new Date(today);
-    firstDayOfWeek.setDate(today.getDate() - today.getDay());
-    const lastDayOfWeek = new Date(firstDayOfWeek);
-    lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
-    return date >= firstDayOfWeek && date <= lastDayOfWeek;
-  };
+ const isThisWeek = (dateStr) => {
+  const date = new Date(dateStr);
+  const today = new Date();
+
+  const day = today.getDay();
+  const diffToMonday = (day === 0 ? 6 : day - 1);
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  return date >= monday && date <= sunday;
+};
+
 
   const todayAlerts = videos.filter(
     (v) => v.fire_detected && isToday(v.created_at)
@@ -267,13 +285,7 @@ const Dashboard = () => {
               Tỉ lệ video có cháy / không cháy
             </div>
             <div
-              style={{
-                width: "100%",
-                height: "40vh",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+             className="donut-chart"
             >
               <Doughnut data={pieData} options={pieOptions} />
               

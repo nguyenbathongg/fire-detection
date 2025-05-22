@@ -165,7 +165,7 @@ const UsersPage = () => {
             <Button
               icon={<EditOutlined />}
               onClick={() => handleEditUser(record.user_id)}
-              style={{ marginRight: 8 }}
+              style={{ marginRight: "0.3rem", fontSize: "0.8rem" }}
             />
           </Tooltip>
           <Popconfirm
@@ -221,8 +221,15 @@ const UsersPage = () => {
         dataSource={filteredUsers}
         loading={loading}
         rowKey="user_id"
-        pagination={false}
+        pagination={{
+          pageSize: 10,
+          // showSizeChanger: true,
+          // pageSizeOptions: ['5', '10', '20', '50'],
+          showTotal: (total, range) => `${range[0]}-${range[1]} trong ${total} người dùng`,
+          showLessItems: true,
+        }}
         className="users-table"
+          // scroll={{ x: "max-content" }}
       />
 
       <Modal

@@ -26,9 +26,9 @@ const isValidYoutubeUrl = (url) => {
   }
 
   if (url.length > 1000) return 'URL quá dài (vượt quá 1000 ký tự).';
-  if (!/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//.test(url)) 
+  if (!/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//.test(url))
     return 'URL không phải trang Youtube.';
-  if (/private/.test(url)) 
+  if (/private/.test(url))
     return 'Video ở chế độ riêng tư, không thể truy cập.';
   return null; // hợp lệ
 };
@@ -115,11 +115,11 @@ const Video = () => {
       dispatch(setVideoData({ videoFile, videoUrl: '', mode: 'video' }));
       navigate('/video/analyze');
     } else if (videoUrl) {
-        const errorMsg = isValidYoutubeUrl(videoUrl);
-        if (errorMsg) {
-          showMessage(errorMsg, 'error');
-          return;
-        }
+      const errorMsg = isValidYoutubeUrl(videoUrl);
+      if (errorMsg) {
+        showMessage(errorMsg, 'error');
+        return;
+      }
       dispatch(setVideoData({ videoFile: null, videoUrl, mode: 'video' }));
       navigate('/video/analyze');
     } else {
@@ -134,8 +134,8 @@ const Video = () => {
 
 
   const startCamera = () => {
-  navigate("/video/cameraresult", { state: { mode: "camera" } });
-};
+    navigate("/video/cameraresult", { state: { mode: "camera" } });
+  };
 
   return (
     <div className="video-page">

@@ -1,5 +1,5 @@
 import React from 'react';
-import ResultDisplay from '../../components/ResultDisplay/ResultDisplay';
+import ResultDisplay from '../../components/ResultDisplay/ResultDisplayNew';
 // import { useLocation } from 'react-router-dom';
 
 const CameraResult = () => {

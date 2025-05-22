@@ -30,7 +30,8 @@
   border-radius: 24px;
   box-shadow: 0 4px 6px rgba(0, 128, 0, 0.1);
   width: 70%;
-  height: 82vh;
+  /* height: 82vh; */
+   height: auto;
   display: flex;
   overflow: hidden;
 }
@@ -125,6 +126,7 @@
   margin-bottom: 4%;
   outline: none;
   transition: border-color 0.3s;
+  font-size: 0.8rem;
 }
 
 .register-input:focus {
@@ -253,4 +255,45 @@
   margin-bottom: 0.5rem !important;
   font-size: 0.7rem;
   text-align: center;
+}
+
+@media (max-width: 414px) {
+  .register-box {
+    width: 80%;         
+    height: auto;       
+  }
+
+  .register-form-section,
+  .register-image-section {
+    width: 100%;         
+    height: auto;
+  }
+
+  
+
+  .register-title {
+    font-size: 1.2rem;
+    margin: 1rem 0;
+  }
+
+  .register-button {
+    font-size: 1rem;
+    padding: 1rem 0;
+  }
+}
+
+/* Màn hình nhỏ hơn hoặc bằng 768px (máy tính bảng) */
+@media (max-width: 768px) {
+  .register-form-section,
+ 
+ 
+  .register-title {
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .register-button {
+    font-size: 0.9rem;
+    padding: 0.8rem 0;
+  }
 }

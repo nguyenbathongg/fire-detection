@@ -144,3 +144,28 @@
 .sidebar.collapsed .sidebar-icon {
     margin-right: 0;
 }
+
+@media (max-width: 768px) {
+    .fire-icon {
+        height: 15vh;
+       display: flex !important;
+        justify-content: center !important;
+    }
+
+}
+@media (max-width: 414px) {
+    .fire-icon {
+        height: 10vh;
+        display: flex !important;
+        justify-content: center !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    .fire-icon {
+        height: 15vh;
+        display: flex !important;
+        justify-content: center !important;
+    }
+}
+

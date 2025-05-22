@@ -33,7 +33,7 @@
 
 .account-content {
   /* margin-top: -2%; */
-  padding: 0rem 5.5rem;
+  padding: 0rem 15%;
   
 }
 
@@ -58,13 +58,17 @@
 
 .account-details {
     background-color: #FFFFFF;
-    padding: 0.05rem 1.5rem;
+    padding: 0.05rem 5%;
     border-radius: 10px;
     font-size: 0.9rem;
+   
 }
 
 .account-details p {
   margin: 0.625rem 0;
+   word-break: break-word; display: flex;
+  flex-wrap: wrap;
+ 
  
 }
 
@@ -196,3 +200,112 @@
   color: #452b6d;
 }
 */
+
+@media (max-width: 768px) {
+  .user-container {
+    padding: 0.5rem;
+    max-width: 100%;
+  }
+
+  .account-box, .history-box {
+    padding: 1rem;
+  }
+
+  .account-content {
+    padding: 0;
+  }
+
+
+
+  .table-header, .table-row {
+  grid-template-columns: 0.8fr 0.8fr 1fr 2fr 0.5fr; /* Giảm số cột khi màn hình nhỏ */
+    font-size: 0.7rem;
+    padding: 0 0;
+  }
+
+  .table-row span, .table-header span {
+    padding: 0.25rem;
+    white-space: normal;
+  }
+
+  .video-pagination {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .video-pagination button {
+    min-width: 2rem;
+    min-height: 2rem;
+    font-size: 0.8rem;
+  }
+
+  .download-button {
+    width: 100%;
+    margin-left: 0;
+  }
+  :where(.css-dev-only-do-not-override-18afz5u).ant-table-wrapper .ant-table-cell {
+    padding: 0.5rem !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+
+@media (max-width: 414px) {
+  .account-header {
+    font-size: 0.8rem;
+  }
+  .account-content {
+    font-size: 0.75em
+  }
+
+  .account-details {
+    font-size: 0.75rem;
+  }
+
+  .account-name {
+    font-size: 0.75rem;
+  }
+  .video-pagination {
+    flex-wrap: wrap;
+    gap: 0rem;
+  }
+
+  :where(.css-dev-only-do-not-override-18afz5u).ant-pagination {
+   gap: 0rem;
+  }
+
+  .history-header {
+    font-size: 0.8rem;
+  }
+  :where(.css-dev-only-do-not-override-18afz5u).ant-pagination {
+    font-size: 0.7rem;
+  }
+  :where(.css-dev-only-do-not-override-18afz5u).ant-table-wrapper .ant-table-cell {
+    padding: 0.3rem !important;
+    font-size: 0.75rem !important;
+  }
+
+    
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 0.8fr 0.8fr 1fr 2fr 0.5fr; /* Giảm số cột khi màn hình nhỏ */
+    font-size: 0.75rem;
+  }
+
+  .table-row span,
+  .table-header span {
+    padding: 0rem;
+  }
+
+  .video-pagination button {
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+    font-size: 0.75rem;
+  }
+
+  .name-input {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+}

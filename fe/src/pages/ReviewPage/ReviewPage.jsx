@@ -96,15 +96,21 @@ const ReviewPage = () => {
       </div>
       <div className="review-page">
         <div className="video-review-frame">
-          <ReactPlayer
-            ref={playerRef}
-            url={videoUrl}
-            playing={playing}
-            onProgress={({ playedSeconds }) => setPlayedSeconds(playedSeconds)}
-            onDuration={(d) => setDuration(d)}
-            width="100%"
-            height="61vh"
-          />
+       <ReactPlayer
+        ref={playerRef}
+        url={videoUrl}
+        playing={playing}
+        onProgress={({ playedSeconds }) => setPlayedSeconds(playedSeconds)}
+        onDuration={(d) => setDuration(d)}
+        style={{
+          maxWidth: "100%",
+          maxHeight: "100%",
+          height: "100%",
+          width: "auto",
+          objectFit: "contain",
+          margin: "auto",
+        }}
+      />
         </div>
 
         {/* Thanh tiến trình video */}

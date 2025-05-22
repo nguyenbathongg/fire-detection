@@ -184,8 +184,10 @@ class CameraController:
                 for mask in masks:
                     mask_resized = cv2.resize(mask, (frame.shape[1], frame.shape[0]))
                     colored_mask = np.zeros_like(frame, dtype=np.uint8)
+                    # Sử dụng cùng màu với bounding box (255, 0, 0) - màu đỏ trong BGR
                     colored_mask[mask_resized > 0.5] = (255, 0, 0)
-                    frame = cv2.addWeighted(frame, 1.0, colored_mask, 2, 0)
+                    # Tăng alpha cho mask để nổi bật hơn (giá trị từ 0.3 đến 0.7 là phù hợp)
+                    frame = cv2.addWeighted(frame, 1.0, colored_mask, 0.7, 0)
             
             # Phân tích các phát hiện
             total_fire_area = 0.0
@@ -193,7 +195,7 @@ class CameraController:
             
             # Hiển thị FPS ở góc trái
             fps_text = f"FPS: {fps}"
-            cv2.putText(frame, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(frame, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
             
             # Vẽ bounding box và tính toán diện tích
             for det in detections:

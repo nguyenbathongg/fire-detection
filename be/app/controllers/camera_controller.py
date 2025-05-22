@@ -5,8 +5,8 @@ import json
 import asyncio
 import logging
 import os
-import time
 import traceback
+import time
 from datetime import datetime
 from typing import Dict, Optional, Any, Tuple, List
 
@@ -39,20 +39,26 @@ class CameraController:
         """
         await websocket.accept()
         self.connected_clients.add(websocket)
-        logger.info(f"Client kết nối camera thành công, đang khởi động camera... (clients: {len(self.connected_clients)})")
+        logger.info(f"Client kết nối thành công, đang khởi động camera...")
         
         try:
             await self._process_camera_feed(websocket)
         except WebSocketDisconnect:
-            logger.info("Client đã ngắt kết nối camera")
+            logger.info("Client đã ngắt kết nối")
         except Exception as e:
             error_details = traceback.format_exc()
-            logger.error(f"Lỗi không mong muốn trong xử lý camera: {str(e)}")
+            logger.error(f"Lỗi không mong muốn: {str(e)}")
             logger.error(f"Chi tiết lỗi: {error_details}")
         finally:
-            self.connected_clients.remove(websocket)
-            await websocket.close()
-            logger.info(f"Đã đóng kết nối WebSocket camera (clients còn lại: {len(self.connected_clients)})")
+            if websocket in self.connected_clients:
+                self.connected_clients.remove(websocket)
+            
+            # Tránh đóng kết nối đã đóng
+            try:
+                await websocket.close()
+                logger.info("Đã đóng kết nối WebSocket")
+            except RuntimeError as e:
+                logger.info(f"Kết nối WebSocket đã đóng trước đó: {str(e)}")
     
     async def _process_camera_feed(self, websocket: WebSocket):
         """
@@ -70,6 +76,7 @@ class CameraController:
             if not cap.isOpened():
                 logger.error("Không thể mở camera")
                 await websocket.send_json({"status": "error", "message": "Không thể khởi động camera"})
+                await websocket.close()
                 return
 
             logger.info("Camera đã sẵn sàng")
@@ -79,23 +86,18 @@ class CameraController:
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             frame_idx = 0
             
-            # Khởi tạo bảng ghi nhớ về khung hình có cháy để giảm flicker
-            fire_memory = []
-            max_memory_frames = 5
+            # Biến để tính FPS
+            prev_frame_time = 0
+            new_frame_time = 0
+            fps = 0
 
             while True:
                 # Kiểm tra lệnh dừng từ client
                 try:
                     data = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
-                    command = json.loads(data) if isinstance(data, str) else data
-                    
-                    if isinstance(command, str) and command == "stop":
+                    if data == "stop":
                         logger.info("Nhận lệnh dừng từ client")
                         break
-                    elif isinstance(command, dict):
-                        if command.get("action") == "stop":
-                            logger.info("Nhận lệnh dừng từ client")
-                            break
                 except asyncio.TimeoutError:
                     pass  # Không có message, tiếp tục xử lý
                 
@@ -103,21 +105,27 @@ class CameraController:
                 ret, frame = cap.read()
                 if not ret:
                     logger.error("Không thể đọc frame từ camera")
-                    await websocket.send_json({"status": "error", "message": "Lỗi đọc dữ liệu từ camera"})
                     break
+                
+                # Tính FPS
+                new_frame_time = time.time()
+                if prev_frame_time == 0:
+                    prev_frame_time = new_frame_time
+                    fps = 0
+                else:
+                    # Tránh chia cho 0
+                    time_diff = new_frame_time - prev_frame_time
+                    if time_diff > 0:
+                        fps = 1/time_diff
+                        fps = int(fps)
+                    else:
+                        fps = 0
+                prev_frame_time = new_frame_time
 
                 # Xử lý frame
-                processed_frame, frame_info = await self._process_frame(
-                    frame, frame_idx, width, height, fire_memory
+                processed_frame, frame_info = self._process_frame(
+                    frame, frame_idx, width, height, fps
                 )
-                
-                # Cập nhật bộ nhớ cháy
-                if frame_info["fire_detected"]:
-                    fire_memory.append(frame_info)
-                    if len(fire_memory) > max_memory_frames:
-                        fire_memory.pop(0)
-                elif len(fire_memory) > 0:
-                    fire_memory.pop(0) if len(fire_memory) > 0 else None
                 
                 # Gửi frame và thông tin phát hiện
                 try:
@@ -128,16 +136,23 @@ class CameraController:
 
                 frame_idx += 1
                 
+        except WebSocketDisconnect:
+            logger.info("Client đã ngắt kết nối")
         except Exception as e:
-            logger.error(f"Lỗi trong quá trình xử lý camera: {str(e)}")
-            await websocket.send_json({"status": "error", "message": f"Lỗi xử lý: {str(e)}"})
+            logger.error(f"Lỗi không mong muốn: {str(e)}")
         finally:
             if cap is not None and cap.isOpened():
                 cap.release()
                 logger.info("Đã giải phóng camera")
+            
+            # Tránh đóng kết nối đã đóng
+            try:
+                await websocket.close()
+                logger.info("Đã đóng kết nối WebSocket")
+            except RuntimeError as e:
+                logger.info(f"Kết nối WebSocket đã đóng trước đó: {str(e)}")
     
-    async def _process_frame(self, frame: np.ndarray, frame_idx: int, width: int, height: int, 
-                            fire_memory: List[Dict[str, Any]]) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_frame(self, frame: np.ndarray, frame_idx: int, width: int, height: int, fps: int = 0) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Xử lý một frame từ camera để phát hiện đám cháy
         
@@ -146,7 +161,6 @@ class CameraController:
             frame_idx: Chỉ số của frame
             width: Chiều rộng frame
             height: Chiều cao frame
-            fire_memory: Bộ nhớ các frame có cháy
             
         Returns:
             Tuple[np.ndarray, Dict[str, Any]]: Frame đã xử lý và thông tin kèm theo
@@ -171,19 +185,21 @@ class CameraController:
                     mask_resized = cv2.resize(mask, (frame.shape[1], frame.shape[0]))
                     colored_mask = np.zeros_like(frame, dtype=np.uint8)
                     colored_mask[mask_resized > 0.5] = (255, 0, 0)
-                    frame = cv2.addWeighted(frame, 1.0, colored_mask, 0.5, 0)
+                    frame = cv2.addWeighted(frame, 1.0, colored_mask, 2, 0)
             
             # Phân tích các phát hiện
             total_fire_area = 0.0
             fire_detected = False
-            confidences = []
+            
+            # Hiển thị FPS ở góc trái
+            fps_text = f"FPS: {fps}"
+            cv2.putText(frame, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
             # Vẽ bounding box và tính toán diện tích
             for det in detections:
                 if int(det.cls[0].item()) == 0:  # Class 0 là đám cháy
                     x1, y1, x2, y2 = det.xyxy[0].cpu().numpy().astype(int)
                     conf = float(det.conf[0].item())
-                    confidences.append(conf)
                     
                     # Vẽ bounding box
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 4)
@@ -196,23 +212,9 @@ class CameraController:
                     total_fire_area += area
                     fire_detected = True
             
-            # Hiển thị thời gian
-            cv2.rectangle(frame_with_detection, (x1, y1 - text_height - 8), (x1 + text_width + 6, y1), (255, 0, 0), -1)
-            cv2.putText(frame, current_time, (10, 30), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-            
-            # Hiển thị cảnh báo cháy nếu phát hiện
-            if fire_detected:
-                warning_text = "Warning"
-                cv2.putText(frame, warning_text, (width // 2 - 120, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-            
             # Mã hóa frame thành base64 để gửi qua WebSocket
             _, buffer = cv2.imencode('.jpg', frame)
             frame_b64 = base64.b64encode(buffer).decode('utf-8')
-            
-            # Tính trung bình confidence
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
             
             # Tạo thông tin frame để gửi
             frame_info = {
@@ -220,7 +222,7 @@ class CameraController:
                 "time": current_time,
                 "fire_detected": fire_detected,
                 "total_area": round(total_fire_area, 4),
-                "confidence": round(avg_confidence, 4),
+                "fps": fps,
                 "frame": frame_b64
             }
             
@@ -237,7 +239,7 @@ class CameraController:
                 "time": datetime.now().strftime("%H:%M:%S %d/%m/%Y"),
                 "fire_detected": False,
                 "total_area": 0.0,
-                "confidence": 0.0,
+                "fps": fps,
                 "frame": frame_b64,
                 "error": str(e)
-            } 
+            }

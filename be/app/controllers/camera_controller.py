@@ -197,12 +197,13 @@ class CameraController:
                     fire_detected = True
             
             # Hiển thị thời gian
+            cv2.rectangle(frame_with_detection, (x1, y1 - text_height - 8), (x1 + text_width + 6, y1), (255, 0, 0), -1)
             cv2.putText(frame, current_time, (10, 30), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
             
             # Hiển thị cảnh báo cháy nếu phát hiện
             if fire_detected:
-                warning_text = "CẢNH BÁO CHÁY!"
+                warning_text = "Warning"
                 cv2.putText(frame, warning_text, (width // 2 - 120, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             
